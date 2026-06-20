@@ -109,17 +109,19 @@ if(TARGET glfw)
     target_compile_options(glfw PRIVATE -fno-sanitize=undefined)
 endif()
 
-
 #### Linking ####
 
 add_executable(${CMAKE_PROJECT_NAME}
-    src/client/main.c
-    src/client/client.c
-    #src/server/main.c
-    #src/server/server.c
+    src/main.c
+    src/game.c
+    src/networking.c
 )
 
-# OpenMP, pthread, GLFW, GLAD, STB & FT
+# CPSTD
+find_package(cpstd REQUIRED)
+target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE cpstd::cpstd)
+
+# OpenMP, pthread, GLFW, GLAD, STB, FT & ENet
 target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE ${stb_SOURCE_DIR})
 target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE ${enet_SOURCE_DIR}/include)
 
@@ -131,8 +133,6 @@ set(THREADS_PREFER_PTHREAD_FLAG TRUE)
 find_package(Threads REQUIRED)
 
 target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE Threads::Threads glad freetype miniaudio)
-
-# Enet
 
 if (NOT EMSCRIPTEN)
     set(GLFW_BUILD_WAYLAND ON CACHE BOOL "" FORCE)
