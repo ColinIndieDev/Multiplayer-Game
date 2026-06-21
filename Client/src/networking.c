@@ -44,9 +44,11 @@ void parse_data(char *packet_data, size_t packet_data_len, void *arg) {
             float elapsed = (float)delay_ms * 0.001f;
 
             vec2f pos = VEC2F(epos.x + (dir.x * projectile_speed * elapsed),
-                              epos.y + (dir.x * projectile_speed * elapsed));
-
+                              epos.y + (dir.y * projectile_speed * elapsed));
+            
+            pthread_mutex_lock(&enemy_projectiles_mutex);
             vec_push(enemy_projectiles, ((projectile_t){epos, dir, true}));
+            pthread_mutex_unlock(&enemy_projectiles_mutex);
         }
         break;
     }
@@ -82,11 +84,13 @@ void parse_data(char *packet_data, size_t packet_data_len, void *arg) {
         health = MAX_HEALTH;
         break;
     case PACKET_RECEIVE_OBSTACLES:
+        pthread_mutex_lock(&obstacles_mutex);
         obstacles_size = packet_read_int(&reader);
         for (int i = 0; i < obstacles_size; i++) {
             obstacles[i].x = packet_read_float(&reader);
             obstacles[i].y = packet_read_float(&reader);
         }
+        pthread_mutex_unlock(&obstacles_mutex);
         break;
     default:
         break;
@@ -95,7 +99,6 @@ void parse_data(char *packet_data, size_t packet_data_len, void *arg) {
 
 void networking_init() {
     if (client_create(&client, "127.0.0.1", 7777, NET_SEC(5))) {
-        client_t client;
         printf("Connection successful\n");
     } else {
         fprintf(stderr, "Connection failed\n");

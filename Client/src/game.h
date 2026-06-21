@@ -36,7 +36,9 @@ typedef enum : uint8_t {
     extern weapons selected_weapon;                                            \
     extern vec2f                                                               \
         obstacles[(MAP_SIZE / PATTERN_SIZE) * (MAP_SIZE / PATTERN_SIZE)];      \
-    extern int obstacles_size;
+    extern int obstacles_size;                                                 \
+    extern pthread_mutex_t enemy_projectiles_mutex;                            \
+    extern pthread_mutex_t obstacles_mutex;
 
 #define MAX_HEALTH 10
 

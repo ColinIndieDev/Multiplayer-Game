@@ -1,4 +1,6 @@
 #include "game.h"
+#include <bits/pthreadtypes.h>
+#include <pthread.h>
 #include <stdio.h>
 
 #define CPRNG_IMPL
@@ -45,6 +47,9 @@ int obstacles_size = 0;
 
 font f;
 
+pthread_mutex_t enemy_projectiles_mutex = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t obstacles_mutex = PTHREAD_MUTEX_INITIALIZER;
+
 void game_sync_death();
 void game_sync_pos();
 void game_sync_projectiles(vec2f pos, vec2f *dir, int count);
@@ -75,9 +80,11 @@ void game_run() {
             }
         }
 
+        pthread_mutex_lock(&obstacles_mutex);
         for (int i = 0; i < obstacles_size; i++) {
             draw_rect(obstacles[i], pattern_size, LIGHT_BLUE, 0);
         }
+        pthread_mutex_unlock(&obstacles_mutex);
 
         draw_rect(player.pos, player.size,
                   health > 0 ? player.color
@@ -337,6 +344,7 @@ void game_handle_controls() {
     }
     vec_erase_if(p, projectiles, !p->active);
 
+    pthread_mutex_lock(&enemy_projectiles_mutex);
     foreach_vec(p, enemy_projectiles) {
         p->pos.x += p->dir.x * projectile_speed * get_dt();
         p->pos.y += p->dir.y * projectile_speed * get_dt();
@@ -355,8 +363,7 @@ void game_handle_controls() {
         }
     }
     vec_erase_if(p, enemy_projectiles, !p->active);
-
-    game_sync_pos();
+    pthread_mutex_unlock(&enemy_projectiles_mutex);
 }
 
 void game_sync_death() {
