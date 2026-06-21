@@ -357,7 +357,7 @@ void game_handle_controls() {
         circle_collider projectile_collider = {.pos = p->pos,
                                                .radius = projectile_radius};
         if (check_collision_circle_rect(projectile_collider, player_collider) &&
-            p->active) {
+            p->active && health > 0) {
             p->active = false;
             health--;
         }
