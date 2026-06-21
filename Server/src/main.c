@@ -1,9 +1,15 @@
 #define CPL_IMPLEMENTATION
 #include <cpl/cpl.h>
 
+#define CPRNG_IMPL
+#include <cpstd/cprng.h>
+
 #include <stdio.h>
 
 #define MAX_CLIENTS 2
+
+#define MAP_SIZE 1000
+#define PATTERN_SIZE 100
 
 bool running = true;
 
@@ -15,7 +21,8 @@ typedef enum : uint8_t {
     PACKET_LEAVE,
     PACKET_JOIN,
     PACKET_DEAD,
-    PACKET_NEW_ROUND
+    PACKET_NEW_ROUND,
+    PACKET_RECEIVE_OBSTACLES
 } packet_id;
 
 typedef enum { PLAYER_RED = 0, PLAYER_BLUE, PLAYER_TYPE_SIZE } player_type;
@@ -26,9 +33,24 @@ bool round_end = false;
 unsigned int last_round_ms = 0;
 unsigned int next_round_dt_ms = 5000;
 
+vec2f obstacles[(MAP_SIZE / PATTERN_SIZE) * (MAP_SIZE / PATTERN_SIZE)];
+int obstacles_size = 0;
+
 int main(void) {
     server_t server;
     server_init(&server, 7777, ENET_HOST_ANY, MAX_CLIENTS);
+
+    cprng_rand_seed();
+
+    for (int i = 0; i < (MAP_SIZE / PATTERN_SIZE) * (MAP_SIZE / PATTERN_SIZE);
+         i++) {
+        int col = i % (MAP_SIZE / PATTERN_SIZE);
+        int row = i / (MAP_SIZE / PATTERN_SIZE);
+        if (cprng_rand() % 5 == 0) {
+            obstacles[obstacles_size++] =
+                VEC2F(col * PATTERN_SIZE, row * PATTERN_SIZE);
+        }
+    }
 
     while (running) {
         ENetEvent event;
@@ -36,9 +58,34 @@ int main(void) {
             if (round_end &&
                 enet_time_get() >= last_round_ms + next_round_dt_ms) {
                 round_end = false;
-                packet_writer writer;
-                packet_writer_init(&writer, PACKET_NEW_ROUND);
-                broadcast_packet(&server, &writer, NET_PACKET_RELIABLE);
+                {
+                    packet_writer writer;
+                    packet_writer_init(&writer, PACKET_NEW_ROUND);
+                    broadcast_packet(&server, &writer, NET_PACKET_RELIABLE);
+                }
+
+                {
+                    obstacles_size = 0;
+                    for (int i = 0; i < (MAP_SIZE / PATTERN_SIZE) *
+                                            (MAP_SIZE / PATTERN_SIZE);
+                         i++) {
+                        int col = i % (MAP_SIZE / PATTERN_SIZE);
+                        int row = i / (MAP_SIZE / PATTERN_SIZE);
+                        if (cprng_rand() % 5 == 0) {
+                            obstacles[obstacles_size++] =
+                                VEC2F(col * PATTERN_SIZE, row * PATTERN_SIZE);
+                        }
+                    }
+                    packet_writer writer;
+                    packet_writer_init(&writer, PACKET_RECEIVE_OBSTACLES);
+                    packet_write_int(&writer, obstacles_size);
+                    for (int i = 0; i < obstacles_size; i++) {
+                        packet_write_float(&writer, obstacles[i].x);
+                        packet_write_float(&writer, obstacles[i].y);
+                    }
+                    send_packet_to_client(event.peer, &writer,
+                                          NET_PACKET_RELIABLE);
+                }
 
                 printf("Started new round!\n");
             }
@@ -86,6 +133,18 @@ int main(void) {
                                                   NET_PACKET_RELIABLE);
                         }
                     }
+
+                    {
+                        packet_writer writer;
+                        packet_writer_init(&writer, PACKET_RECEIVE_OBSTACLES);
+                        packet_write_int(&writer, obstacles_size);
+                        for (int i = 0; i < obstacles_size; i++) {
+                            packet_write_float(&writer, obstacles[i].x);
+                            packet_write_float(&writer, obstacles[i].y);
+                        }
+                        send_packet_to_client(event.peer, &writer,
+                                              NET_PACKET_RELIABLE);
+                    }
                 }
 
                 break;
@@ -115,8 +174,12 @@ int main(void) {
                     packet_write_int(&writer, packet_read_int(&reader));
                     packet_write_float(&writer, packet_read_float(&reader));
                     packet_write_float(&writer, packet_read_float(&reader));
-                    packet_write_float(&writer, packet_read_float(&reader));
-                    packet_write_float(&writer, packet_read_float(&reader));
+                    int count = packet_read_int(&reader);
+                    packet_write_int(&writer, count);
+                    for (int i = 0; i < count; i++) {
+                        packet_write_float(&writer, packet_read_float(&reader));
+                        packet_write_float(&writer, packet_read_float(&reader));
+                    }
                     broadcast_packet(&server, &writer, NET_PACKET_RELIABLE);
                     break;
                 }

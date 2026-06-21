@@ -10,7 +10,8 @@ typedef enum : uint8_t {
     PACKET_LEAVE,
     PACKET_JOIN,
     PACKET_DEAD,
-    PACKET_NEW_ROUND
+    PACKET_NEW_ROUND,
+    PACKET_RECEIVE_OBSTACLES
 } packet_id;
 
 #define EXTERN_NETWORKING_H_VARIABLES                                          \

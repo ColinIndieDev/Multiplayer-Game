@@ -1,6 +1,7 @@
 #include "networking.h"
 
 #include <cpl/cpl.h>
+#include <cpstd/cprng.h>
 
 #include "game.h"
 
@@ -34,16 +35,19 @@ void parse_data(char *packet_data, size_t packet_data_len, void *arg) {
         }
         vec2f epos =
             VEC2F(packet_read_float(&reader), packet_read_float(&reader));
-        vec2f dir =
-            VEC2F(packet_read_float(&reader), packet_read_float(&reader));
+        int count = packet_read_int(&reader);
+        for (int i = 0; i < count; i++) {
+            vec2f dir =
+                VEC2F(packet_read_float(&reader), packet_read_float(&reader));
 
-        unsigned int delay_ms = client.peer->roundTripTime;
-        float elapsed = (float)delay_ms * 0.001f;
+            unsigned int delay_ms = client.peer->roundTripTime;
+            float elapsed = (float)delay_ms * 0.001f;
 
-        vec2f pos = VEC2F(epos.x + (dir.x * projectile_speed * elapsed),
-                          epos.y + (dir.x * projectile_speed * elapsed));
+            vec2f pos = VEC2F(epos.x + (dir.x * projectile_speed * elapsed),
+                              epos.y + (dir.x * projectile_speed * elapsed));
 
-        vec_push(enemy_projectiles, ((projectile_t){epos, dir, true}));
+            vec_push(enemy_projectiles, ((projectile_t){epos, dir, true}));
+        }
         break;
     }
     case PACKET_JOIN:
@@ -59,6 +63,7 @@ void parse_data(char *packet_data, size_t packet_data_len, void *arg) {
     case PACKET_DEAD:
         if (packet_read_int(&reader) != id) {
             enemy_exist = false;
+            score++;
         }
         break;
     case PACKET_NEW_ROUND:
@@ -73,7 +78,15 @@ void parse_data(char *packet_data, size_t packet_data_len, void *arg) {
         }
         sent_death_msg = false;
         enemy_exist = true;
+        selected_weapon = cprng_rand() % WEAPONS_SIZE;
         health = MAX_HEALTH;
+        break;
+    case PACKET_RECEIVE_OBSTACLES:
+        obstacles_size = packet_read_int(&reader);
+        for (int i = 0; i < obstacles_size; i++) {
+            obstacles[i].x = packet_read_float(&reader);
+            obstacles[i].y = packet_read_float(&reader);
+        }
         break;
     default:
         break;
