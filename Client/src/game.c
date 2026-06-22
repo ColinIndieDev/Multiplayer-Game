@@ -192,6 +192,8 @@ void game_run() {
             }
         }
 
+        display_details(&f);
+
         end_frame();
     }
     close_window();
@@ -199,6 +201,7 @@ void game_run() {
 
 void game_init() {
     init_window(800, 800, "Multiplayer Game", OPENGL_VER_3_3);
+    enable_vsync(false);
     cprng_rand_seed();
     create_font(&f, "assets/fonts/default.ttf", "default", FILTER_LINEAR);
 
@@ -282,11 +285,14 @@ void game_handle_controls() {
             } else if (selected_weapon == WEAPON_SHOCKWAVE) {
                 vec2f pos = VEC2F(player.pos.x + (player.size.x * 0.5f),
                                   player.pos.y + (player.size.y * 0.5f));
-                vec2f dirs[9] = {VEC2F(0, -1), VEC2F(1, -1),  VEC2F(1, 0),
-                                 VEC2F(-1, 1), VEC2F(0, 1),   VEC2F(-1, 1),
-                                 VEC2F(-1, 0), VEC2F(-1, -1), VEC2F(1, 1)};
+                vec2f dirs[9] = {
+                    vec2f_norm(VEC2F(0, -1)), vec2f_norm(VEC2F(1, -1)),
+                    vec2f_norm(VEC2F(1, 0)),  vec2f_norm(VEC2F(-1, 1)),
+                    vec2f_norm(VEC2F(0, 1)),  vec2f_norm(VEC2F(-1, 1)),
+                    vec2f_norm(VEC2F(-1, 0)), vec2f_norm(VEC2F(-1, -1)),
+                    vec2f_norm(VEC2F(1, 1))};
                 for (int i = 0; i < 9; i++) {
-                    vec2f dir = vec2f_norm(dirs[i]);
+                    vec2f dir = dirs[i];
 
                     vec_push(projectiles, ((projectile_t){pos, dir, true}));
                 }

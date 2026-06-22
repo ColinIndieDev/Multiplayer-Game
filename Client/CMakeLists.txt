@@ -27,7 +27,7 @@ endif()
 #### Dev ####
 
 if (CMAKE_BUILD_TYPE STREQUAL "Dev")
-    add_compile_options(-g -O2 -fno-omit-frame-pointer -DNDEBUG)
+    add_compile_options(-g -O2 -fno-omit-frame-pointer -U NDEBUG)
 endif()
 
 #### Release ####
