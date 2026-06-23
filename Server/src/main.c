@@ -2,7 +2,7 @@
 #include <cpl/cpl.h>
 
 #define CPRNG_IMPL
-#include <cpstd/cprng.h>
+#include <cpstd/rand.h>
 
 #include <stdio.h>
 
@@ -40,13 +40,14 @@ int main(void) {
     server_t server;
     server_init(&server, 7777, ENET_HOST_ANY, MAX_CLIENTS);
 
-    cprng_rand_seed();
+    pcg_rand_seed();
 
     for (int i = 0; i < (MAP_SIZE / PATTERN_SIZE) * (MAP_SIZE / PATTERN_SIZE);
          i++) {
         int col = i % (MAP_SIZE / PATTERN_SIZE);
         int row = i / (MAP_SIZE / PATTERN_SIZE);
-        if (cprng_rand() % 5 == 0) {
+        if (pcg_rand() % 5 == 0 && col != 0 &&
+            col != (MAP_SIZE / PATTERN_SIZE) - 1) {
             obstacles[obstacles_size++] =
                 VEC2F(col * PATTERN_SIZE, row * PATTERN_SIZE);
         }
@@ -71,7 +72,8 @@ int main(void) {
                          i++) {
                         int col = i % (MAP_SIZE / PATTERN_SIZE);
                         int row = i / (MAP_SIZE / PATTERN_SIZE);
-                        if (cprng_rand() % 5 == 0) {
+                        if (pcg_rand() % 5 == 0 && col != 0 &&
+                            col != (MAP_SIZE / PATTERN_SIZE) - 1) {
                             obstacles[obstacles_size++] =
                                 VEC2F(col * PATTERN_SIZE, row * PATTERN_SIZE);
                         }
@@ -83,7 +85,7 @@ int main(void) {
                         packet_write_float(&writer, obstacles[i].x);
                         packet_write_float(&writer, obstacles[i].y);
                     }
-                    send_packet_to_client(event.peer, &writer,
+                    broadcast_packet(&server, &writer,
                                           NET_PACKET_RELIABLE);
                 }
 

@@ -38,7 +38,8 @@ typedef enum : uint8_t {
         obstacles[(MAP_SIZE / PATTERN_SIZE) * (MAP_SIZE / PATTERN_SIZE)];      \
     extern int obstacles_size;                                                 \
     extern pthread_mutex_t enemy_projectiles_mutex;                            \
-    extern pthread_mutex_t obstacles_mutex;
+    extern pthread_mutex_t obstacles_mutex;                                    \
+    extern projectile_t *projectiles;
 
 #define MAX_HEALTH 10
 

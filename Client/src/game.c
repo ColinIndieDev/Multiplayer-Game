@@ -3,11 +3,9 @@
 #include <pthread.h>
 #include <stdio.h>
 
-#define CPRNG_IMPL
-#include <cpstd/cprng.h>
-
 #include <cpl/cpl.h>
-#include <cpstd/cpvec.h>
+#include <cpstd/rand.h>
+#include <cpstd/vector.h>
 #include <math.h>
 
 #include "networking.h"
@@ -82,7 +80,7 @@ void game_run() {
 
         pthread_mutex_lock(&obstacles_mutex);
         for (int i = 0; i < obstacles_size; i++) {
-            draw_rect(obstacles[i], pattern_size, LIGHT_BLUE, 0);
+            draw_rect(obstacles[i], pattern_size, BLACK, 0);
         }
         pthread_mutex_unlock(&obstacles_mutex);
 
@@ -192,8 +190,6 @@ void game_run() {
             }
         }
 
-        display_details(&f);
-
         end_frame();
     }
     close_window();
@@ -202,7 +198,7 @@ void game_run() {
 void game_init() {
     init_window(800, 800, "Multiplayer Game", OPENGL_VER_3_3);
     enable_vsync(false);
-    cprng_rand_seed();
+    pcg_rand_seed();
     create_font(&f, "assets/fonts/default.ttf", "default", FILTER_LINEAR);
 
     if (id == 0) {
@@ -218,7 +214,7 @@ void game_init() {
     projectiles = vec_init(projectiles, 10);
     enemy_projectiles = vec_init(enemy_projectiles, 10);
 
-    selected_weapon = cprng_rand() % WEAPONS_SIZE;
+    selected_weapon = pcg_rand() % WEAPONS_SIZE;
 }
 
 void game_handle_controls() {
@@ -251,8 +247,52 @@ void game_handle_controls() {
     if (is_key_down(KEY_D)) {
         vel.x = 1;
     }
+
     player.pos.x += speed * vel.x * get_dt();
+    for (int i = 0; i < obstacles_size; i++) {
+        rect_collider player_collider = {.pos = player.pos,
+                                         .size = player.size};
+        rect_collider tile_collider = {.pos = obstacles[i],
+                                       .size = pattern_size};
+
+        if (player.pos.x + player.size.x <= tile_collider.pos.x ||
+            player.pos.x >= tile_collider.pos.x + tile_collider.size.x) {
+            continue;
+        }
+
+        if (check_collision_rects(player_collider, tile_collider)) {
+            if (vel.x < 0) {
+                player.pos.x =
+                    tile_collider.pos.x + tile_collider.size.x + 0.01f;
+            } else if (vel.x > 0) {
+                player.pos.x = tile_collider.pos.x - player.size.x - 0.01f;
+            }
+            vel.x = 0;
+        }
+    }
+
     player.pos.y += speed * vel.y * get_dt();
+    for (int i = 0; i < obstacles_size; i++) {
+        rect_collider player_collider = {.pos = player.pos,
+                                         .size = player.size};
+        rect_collider tile_collider = {.pos = obstacles[i],
+                                       .size = pattern_size};
+
+        if (player.pos.y + player.size.y <= tile_collider.pos.y ||
+            player.pos.y >= tile_collider.pos.y + tile_collider.size.y) {
+            continue;
+        }
+
+        if (check_collision_rects(player_collider, tile_collider)) {
+            if (vel.y < 0) {
+                player.pos.y =
+                    tile_collider.pos.y + tile_collider.size.y + 0.01f;
+            } else if (vel.y > 0) {
+                player.pos.y = tile_collider.pos.y - player.size.y - 0.01f;
+            }
+            vel.y = 0;
+        }
+    }
 
     if (player.pos.x < 0) {
         player.pos.x = 0;
@@ -264,8 +304,6 @@ void game_handle_controls() {
     } else if (player.pos.y + player.size.y > MAP_SIZE) {
         player.pos.y = MAP_SIZE - player.size.y;
     }
-
-    // TODO add collision for obstacles
 
     game_sync_pos();
 
@@ -340,12 +378,30 @@ void game_handle_controls() {
             p->pos.y > map_size.y) {
             p->active = false;
         }
-        rect_collider enemy_collider = {.pos = enemy.pos, .size = enemy.size};
-        circle_collider projectile_collider = {.pos = p->pos,
-                                               .radius = projectile_radius};
-        if (check_collision_circle_rect(projectile_collider, enemy_collider) &&
-            p->active && enemy_exist) {
-            p->active = false;
+
+        {
+            rect_collider enemy_collider = {.pos = enemy.pos,
+                                            .size = enemy.size};
+            circle_collider projectile_collider = {.pos = p->pos,
+                                                   .radius = projectile_radius};
+            if (check_collision_circle_rect(projectile_collider,
+                                            enemy_collider) &&
+                p->active && enemy_exist) {
+                p->active = false;
+            }
+        }
+
+        for (int i = 0; i < obstacles_size; i++) {
+            circle_collider projectile_collider = {.pos = p->pos,
+                                                   .radius = projectile_radius};
+            rect_collider tile_collider = {.pos = obstacles[i],
+                                           .size = pattern_size};
+
+            if (check_collision_circle_rect(projectile_collider,
+                                            tile_collider) &&
+                p->active) {
+                p->active = false;
+            }
         }
     }
     vec_erase_if(p, projectiles, !p->active);
@@ -358,14 +414,31 @@ void game_handle_controls() {
             p->pos.y > map_size.y) {
             p->active = false;
         }
-        rect_collider player_collider = {.pos = player.pos,
-                                         .size = player.size};
-        circle_collider projectile_collider = {.pos = p->pos,
-                                               .radius = projectile_radius};
-        if (check_collision_circle_rect(projectile_collider, player_collider) &&
-            p->active && health > 0) {
-            p->active = false;
-            health--;
+
+        {
+            rect_collider player_collider = {.pos = player.pos,
+                                             .size = player.size};
+            circle_collider projectile_collider = {.pos = p->pos,
+                                                   .radius = projectile_radius};
+            if (check_collision_circle_rect(projectile_collider,
+                                            player_collider) &&
+                p->active && health > 0) {
+                p->active = false;
+                health--;
+            }
+        }
+
+        for (int i = 0; i < obstacles_size; i++) {
+            circle_collider projectile_collider = {.pos = p->pos,
+                                                   .radius = projectile_radius};
+            rect_collider tile_collider = {.pos = obstacles[i],
+                                           .size = pattern_size};
+
+            if (check_collision_circle_rect(projectile_collider,
+                                            tile_collider) &&
+                p->active) {
+                p->active = false;
+            }
         }
     }
     vec_erase_if(p, enemy_projectiles, !p->active);

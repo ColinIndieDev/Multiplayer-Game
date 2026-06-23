@@ -1,7 +1,7 @@
 #include "networking.h"
 
 #include <cpl/cpl.h>
-#include <cpstd/cprng.h>
+#include <cpstd/rand.h>
 
 #include "game.h"
 
@@ -80,8 +80,10 @@ void parse_data(char *packet_data, size_t packet_data_len, void *arg) {
         }
         sent_death_msg = false;
         enemy_exist = true;
-        selected_weapon = cprng_rand() % WEAPONS_SIZE;
+        selected_weapon = pcg_rand() % WEAPONS_SIZE;
         health = MAX_HEALTH;
+        vec_clear(enemy_projectiles);
+        vec_clear(projectiles);
         break;
     case PACKET_RECEIVE_OBSTACLES:
         pthread_mutex_lock(&obstacles_mutex);
