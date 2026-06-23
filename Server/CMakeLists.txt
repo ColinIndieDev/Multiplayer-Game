@@ -8,6 +8,8 @@ set(CMAKE_C_STANDARD 99)
 set(CMAKE_C_STANDARD_REQUIRED ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
+# {{{ ===== BUILD MODES =====
+
 #### Debug ####
 
 if (CMAKE_BUILD_TYPE STREQUAL "Debug")
@@ -36,7 +38,10 @@ if (CMAKE_BUILD_TYPE STREQUAL "Release")
     add_compile_options(-g -O3 -ffast-math -DNDEBUG)
 endif()
 
-#### Dependencies (CPL) ####
+# }}}
+
+# {{{ ===== DEPENDENCIES =====
+
 include(FetchContent)
 
 if (EMSCRIPTEN)
@@ -109,11 +114,17 @@ if(TARGET glfw)
     target_compile_options(glfw PRIVATE -fno-sanitize=undefined)
 endif()
 
+# }}}
+
 #### Linking ####
 
 add_executable(${CMAKE_PROJECT_NAME}
     src/main.c
+
+    src/network.c
 )
+
+# {{{ ===== LIBRARIES =====
 
 # CPSTD
 find_package(cpstd REQUIRED)
@@ -131,6 +142,10 @@ set(THREADS_PREFER_PTHREAD_FLAG TRUE)
 find_package(Threads REQUIRED)
 
 target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE Threads::Threads glad freetype miniaudio)
+
+# }}}
+
+# {{{ ===== WEB EMSCRIPTEN =====
 
 if (NOT EMSCRIPTEN)
     set(GLFW_BUILD_WAYLAND ON CACHE BOOL "" FORCE)
@@ -175,3 +190,5 @@ if (EMSCRIPTEN)
 
     set_target_properties(${CMAKE_PROJECT_NAME} PROPERTIES SUFFIX ".html")
 endif()
+
+# }}}

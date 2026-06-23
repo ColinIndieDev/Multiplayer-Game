@@ -1,8 +1,6 @@
 #define CPL_IMPLEMENTATION
 #include <cpl/cpl.h>
 
-#include <cpstd/vector.h>
-
 #include "networking.h"
 #include "game.h"
 

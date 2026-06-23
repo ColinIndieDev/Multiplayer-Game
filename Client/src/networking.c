@@ -9,6 +9,7 @@ EXTERN_GAME_H_VARIABLES
 
 client_t client;
 int id = -1;
+pthread_mutex_t game_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 void parse_data(char *packet_data, size_t packet_data_len, void *arg) {
     (void)arg;
@@ -25,8 +26,8 @@ void parse_data(char *packet_data, size_t packet_data_len, void *arg) {
         if (id == packet_read_int(&reader)) {
             break;
         }
-        enemy.pos.x = packet_read_float(&reader);
-        enemy.pos.y = packet_read_float(&reader);
+        enemy.attribs.pos.x = packet_read_float(&reader);
+        enemy.attribs.pos.y = packet_read_float(&reader);
         break;
     }
     case PACKET_PROJECTILE_SYNC: {
@@ -46,9 +47,9 @@ void parse_data(char *packet_data, size_t packet_data_len, void *arg) {
             vec2f pos = VEC2F(epos.x + (dir.x * projectile_speed * elapsed),
                               epos.y + (dir.y * projectile_speed * elapsed));
             
-            pthread_mutex_lock(&enemy_projectiles_mutex);
-            vec_push(enemy_projectiles, ((projectile_t){epos, dir, true}));
-            pthread_mutex_unlock(&enemy_projectiles_mutex);
+            pthread_mutex_lock(&game_mutex);
+            vec_push(enemy.projectiles, ((projectile_t){epos, dir, true}));
+            pthread_mutex_unlock(&game_mutex);
         }
         break;
     }
@@ -65,34 +66,28 @@ void parse_data(char *packet_data, size_t packet_data_len, void *arg) {
     case PACKET_DEAD:
         if (packet_read_int(&reader) != id) {
             enemy_exist = false;
-            score++;
+            player.score++;
         }
         break;
     case PACKET_NEW_ROUND:
-        if (id == 0) {
-            player.pos = VEC2F(0, (map_size.y * 0.5f) - (player.size.y * 0.5f));
-            enemy.pos = VEC2F(map_size.x - enemy.size.x,
-                              (map_size.y * 0.5f) - (enemy.size.y * 0.5f));
-        } else {
-            enemy.pos = VEC2F(0, (map_size.y * 0.5f) - (enemy.size.y * 0.5f));
-            player.pos = VEC2F(map_size.x - player.size.x,
-                               (map_size.y * 0.5f) - (player.size.y * 0.5f));
-        }
+        game_init_start_pos();
         sent_death_msg = false;
         enemy_exist = true;
         selected_weapon = pcg_rand() % WEAPONS_SIZE;
         health = MAX_HEALTH;
-        vec_clear(enemy_projectiles);
-        vec_clear(projectiles);
+        pthread_mutex_lock(&game_mutex);
+        vec_clear(enemy.projectiles);
+        vec_clear(player.projectiles);
+        pthread_mutex_unlock(&game_mutex);
         break;
     case PACKET_RECEIVE_OBSTACLES:
-        pthread_mutex_lock(&obstacles_mutex);
+        pthread_mutex_lock(&game_mutex);
         obstacles_size = packet_read_int(&reader);
         for (int i = 0; i < obstacles_size; i++) {
             obstacles[i].x = packet_read_float(&reader);
             obstacles[i].y = packet_read_float(&reader);
         }
-        pthread_mutex_unlock(&obstacles_mutex);
+        pthread_mutex_unlock(&game_mutex);
         break;
     default:
         break;

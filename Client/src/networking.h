@@ -3,7 +3,7 @@
 #include <stdint.h>
 
 typedef enum : uint8_t {
-    PACKET_INFO,
+    PACKET_INFO = 0,
     PACKET_RECEIVE_ID,
     PACKET_POS_SYNC,
     PACKET_PROJECTILE_SYNC,
@@ -14,9 +14,10 @@ typedef enum : uint8_t {
     PACKET_RECEIVE_OBSTACLES
 } packet_id;
 
-#define EXTERN_NETWORKING_H_VARIABLES                                          \
-    extern client_t client;                                                    \
-    extern int id;
+#define EXTERN_NETWORKING_H_VARIABLES   \
+    extern client_t client;             \
+    extern int id;                      \
+    extern pthread_mutex_t game_mutex;
 
 void networking_init();
 void networking_close();
