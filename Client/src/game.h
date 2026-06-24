@@ -5,8 +5,10 @@
 typedef struct {
     vec2f pos;
     vec2f dir;
+    int bounce;
     bool active;
 } projectile_t;
+#define PROJECTILE_INITIALIZER(pos, dir) ((projectile_t){pos, dir, 0, true})
 
 typedef struct {
     struct {
@@ -38,7 +40,9 @@ typedef enum : uint8_t {
     extern weapons selected_weapon;                                            \
     extern vec2f                                                               \
         obstacles[(MAP_SIZE / PATTERN_SIZE) * (MAP_SIZE / PATTERN_SIZE)];      \
-    extern int obstacles_size;
+    extern int obstacles_size;                                                 \
+    extern unsigned int max_bounces;                                           \
+    extern game_mode cur_mode;
 
 #define MAX_HEALTH 10
 
@@ -47,3 +51,5 @@ typedef enum : uint8_t {
 
 void game_init_start_pos();
 void game_run();
+
+void play_shoot_sfx();

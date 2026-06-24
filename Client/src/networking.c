@@ -37,6 +37,9 @@ void parse_data(char *packet_data, size_t packet_data_len, void *arg) {
         vec2f epos =
             VEC2F(packet_read_float(&reader), packet_read_float(&reader));
         int count = packet_read_int(&reader);
+
+        play_shoot_sfx();
+
         for (int i = 0; i < count; i++) {
             vec2f dir =
                 VEC2F(packet_read_float(&reader), packet_read_float(&reader));
@@ -46,9 +49,9 @@ void parse_data(char *packet_data, size_t packet_data_len, void *arg) {
 
             vec2f pos = VEC2F(epos.x + (dir.x * projectile_speed * elapsed),
                               epos.y + (dir.y * projectile_speed * elapsed));
-            
+
             pthread_mutex_lock(&game_mutex);
-            vec_push(enemy.projectiles, ((projectile_t){epos, dir, true}));
+            vec_push(enemy.projectiles, PROJECTILE_INITIALIZER(pos, dir));
             pthread_mutex_unlock(&game_mutex);
         }
         break;
@@ -89,6 +92,28 @@ void parse_data(char *packet_data, size_t packet_data_len, void *arg) {
         }
         pthread_mutex_unlock(&game_mutex);
         break;
+    case PACKET_RECEIVE_GAME_MODE: {
+        game_mode mode = packet_read_int(&reader);
+        switch (mode) {
+        case MODE_CLASSIC:
+            max_bounces = 1;
+            break;
+        case MODE_SOLID:
+            max_bounces = 0;
+            break;
+        case MODE_BOUNCY:
+            max_bounces = 3;
+            break;
+        case MODE_CHAOS:
+            max_bounces = (unsigned int)-1;
+            break;
+        case MODE_FRIENDLY_FIRE:
+            max_bounces = 3;
+            break;
+        }
+        cur_mode = mode;
+        break;
+    }
     default:
         break;
     }

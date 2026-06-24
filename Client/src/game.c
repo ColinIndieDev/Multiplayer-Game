@@ -44,11 +44,16 @@ bool enemy_exist = false;
 
 float projectile_speed = 500.0f;
 float projectile_radius = 10.0f;
+unsigned int max_bounces = 0;
+
+game_mode cur_mode = MODE_CLASSIC;
 
 vec2f obstacles[(MAP_SIZE / PATTERN_SIZE) * (MAP_SIZE / PATTERN_SIZE)];
 int obstacles_size = 0;
 
 font f;
+
+audio shoot_sfx;
 
 // }}}
 
@@ -74,6 +79,7 @@ void game_run() {
 
         end_frame();
     }
+    audio_close();
     close_window();
 }
 
@@ -95,12 +101,16 @@ void game_init_start_pos() {
 
 void game_init() {
     init_window(800, 800, "Multiplayer Game", OPENGL_VER_3_3);
+    audio_init();
     enable_vsync(false);
     pcg_rand_seed();
+
     create_font(&f, "assets/fonts/default.ttf", "default", FILTER_LINEAR);
 
+    shoot_sfx = load_audio("assets/sounds/shoot.mp3");
+
     game_init_start_pos();
-    
+
     player.projectiles = vec_init(player.projectiles, 10);
     pthread_mutex_lock(&game_mutex);
     enemy.projectiles = vec_init(enemy.projectiles, 10);
@@ -144,13 +154,21 @@ void game_draw_players() {
 
     pthread_mutex_lock(&game_mutex);
     foreach_vec(p, player.projectiles) {
-        draw_circle(p->pos, projectile_radius, player.attribs.color);
+        if (cur_mode == MODE_FRIENDLY_FIRE && p->bounce >= 1) {
+            draw_circle(p->pos, projectile_radius, YELLOW);
+        } else {
+            draw_circle(p->pos, projectile_radius, player.attribs.color);
+        }
     }
     pthread_mutex_unlock(&game_mutex);
 
     pthread_mutex_lock(&game_mutex);
     foreach_vec(p, enemy.projectiles) {
-        draw_circle(p->pos, projectile_radius, enemy.attribs.color);
+        if (cur_mode == MODE_FRIENDLY_FIRE && p->bounce >= 1) {
+            draw_circle(p->pos, projectile_radius, YELLOW);
+        } else {
+            draw_circle(p->pos, projectile_radius, enemy.attribs.color);
+        }
     }
     pthread_mutex_unlock(&game_mutex);
 }
@@ -239,6 +257,34 @@ void game_draw_ui() {
                 scale, player.attribs.color, VEC2F(3, 3), LIGHT_BLUE);
         }
     }
+
+    {
+        char txt[100];
+        char *mode;
+        switch (cur_mode) {
+        case MODE_CLASSIC:
+            mode = "Classic";
+            break;
+        case MODE_SOLID:
+            mode = "Solid";
+            break;
+        case MODE_BOUNCY:
+            mode = "Bouncy";
+            break;
+        case MODE_CHAOS:
+            mode = "Chaos";
+            break;
+        case MODE_FRIENDLY_FIRE:
+            mode = "Friendly Fire";
+            break;
+        default:
+            mode = "???";
+            break;
+        }
+        snprintf(txt, 100, "Game Mode: %s", mode);
+        draw_text_shadow(&f, txt, VEC2F(off.x, 100), scale, WHITE, VEC2F(3, 3),
+                         BLACK);
+    }
 }
 
 // }}}
@@ -259,6 +305,12 @@ void game_draw() {
 
     game_draw_ui();
 }
+
+// {{{ SFX
+
+void play_shoot_sfx() { audio_play_sound(&shoot_sfx); }
+
+// }}}
 
 // {{{ game_handle_player() Helper
 
@@ -343,9 +395,10 @@ void game_handle_weapon() {
                     player.attribs.pos.y + (player.attribs.size.y * 0.5f));
                 vec2f dir = vec2f_norm(VEC2F(mouse.x - pos.x, mouse.y - pos.y));
 
-                
+                play_shoot_sfx();
+
                 pthread_mutex_lock(&game_mutex);
-                vec_push(player.projectiles, ((projectile_t){pos, dir, true}));
+                vec_push(player.projectiles, PROJECTILE_INITIALIZER(pos, dir));
                 pthread_mutex_unlock(&game_mutex);
                 game_sync_projectiles(pos, &dir, 1);
             } else if (selected_weapon == WEAPON_SHOCKWAVE) {
@@ -358,12 +411,15 @@ void game_handle_weapon() {
                     vec2f_norm(VEC2F(0, 1)),  vec2f_norm(VEC2F(-1, 1)),
                     vec2f_norm(VEC2F(-1, 0)), vec2f_norm(VEC2F(-1, -1)),
                     vec2f_norm(VEC2F(1, 1))};
+
+                play_shoot_sfx();
+
                 pthread_mutex_lock(&game_mutex);
                 for (int i = 0; i < 9; i++) {
                     vec2f dir = dirs[i];
-    
+
                     vec_push(player.projectiles,
-                             ((projectile_t){pos, dir, true}));
+                             PROJECTILE_INITIALIZER(pos, dir));
                 }
                 pthread_mutex_unlock(&game_mutex);
                 game_sync_projectiles(pos, dirs, 9);
@@ -379,11 +435,15 @@ void game_handle_weapon() {
                 vec2f dirs[3] = {VEC2F(cosf(rad - 0.33f), sinf(rad - 0.33f)),
                                  VEC2F(cosf(rad), sinf(rad)),
                                  VEC2F(cosf(rad + 0.33f), sinf(rad) + 0.33f)};
+
+                play_shoot_sfx();
+
                 pthread_mutex_lock(&game_mutex);
+
                 for (int i = 0; i < 3; i++) {
 
                     vec_push(player.projectiles,
-                             ((projectile_t){pos, dirs[i], true}));
+                             PROJECTILE_INITIALIZER(pos, dirs[i]));
                 }
                 pthread_mutex_unlock(&game_mutex);
                 game_sync_projectiles(pos, dirs, 3);
@@ -400,8 +460,10 @@ void game_handle_weapon() {
                       player.attribs.pos.y + (player.attribs.size.y * 0.5f));
             vec2f dir = vec2f_norm(VEC2F(mouse.x - pos.x, mouse.y - pos.y));
 
+            play_shoot_sfx();
+
             pthread_mutex_lock(&game_mutex);
-            vec_push(player.projectiles, ((projectile_t){pos, dir, true}));
+            vec_push(player.projectiles, PROJECTILE_INITIALIZER(pos, dir));
             pthread_mutex_unlock(&game_mutex);
             game_sync_projectiles(pos, &dir, 1);
 
@@ -410,54 +472,99 @@ void game_handle_weapon() {
     }
 }
 
-void game_handle_projectiles() {
-    pthread_mutex_lock(&game_mutex);
-    foreach_vec(p, player.projectiles) {
-        p->pos.x += p->dir.x * projectile_speed * get_dt();
-        p->pos.y += p->dir.y * projectile_speed * get_dt();
-        if (p->pos.x < 0 || p->pos.x > MAP_SIZE || p->pos.y < 0 ||
-            p->pos.y > MAP_SIZE) {
+void game_handle_projectile(projectile_t *p) {
+    p->pos.x += p->dir.x * projectile_speed * get_dt();
+    if (p->pos.x - projectile_radius < 0) {
+        p->pos.x = projectile_radius + 0.01f;
+        p->dir.x *= -1;
+        p->bounce++;
+        if (p->bounce > max_bounces) {
             p->active = false;
         }
-
-        {
-            rect_collider enemy_collider = {.pos = enemy.attribs.pos,
-                                            .size = enemy.attribs.size};
-            circle_collider projectile_collider = {.pos = p->pos,
-                                                   .radius = projectile_radius};
-            if (check_collision_circle_rect(projectile_collider,
-                                            enemy_collider) &&
-                p->active && enemy_exist) {
-                p->active = false;
-            }
+    } else if (p->pos.x + projectile_radius > MAP_SIZE) {
+        p->pos.x = MAP_SIZE - projectile_radius - 0.01f;
+        p->dir.x *= -1;
+        p->bounce++;
+        if (p->bounce > max_bounces) {
+            p->active = false;
         }
+    }
+    for (int i = 0; i < obstacles_size; i++) {
+        circle_collider projectile_collider = {.pos = p->pos,
+                                               .radius = projectile_radius};
+        rect_collider tile_collider = {
+            .pos = obstacles[i], .size = VEC2F(PATTERN_SIZE, PATTERN_SIZE)};
 
-        for (int i = 0; i < obstacles_size; i++) {
-            circle_collider projectile_collider = {.pos = p->pos,
-                                                   .radius = projectile_radius};
-            rect_collider tile_collider = {
-                .pos = obstacles[i], .size = VEC2F(PATTERN_SIZE, PATTERN_SIZE)};
-
-            if (check_collision_circle_rect(projectile_collider,
-                                            tile_collider) &&
-                p->active) {
+        if (check_collision_circle_rect(projectile_collider, tile_collider) &&
+            p->active) {
+            if (p->dir.x > 0) {
+                p->pos.x = tile_collider.pos.x - projectile_radius - 0.01f;
+            } else if (p->dir.x < 0) {
+                p->pos.x = tile_collider.pos.x + tile_collider.size.x +
+                           projectile_radius + 0.01f;
+            }
+            p->dir.x *= -1;
+            p->bounce++;
+            if (p->bounce > max_bounces) {
                 p->active = false;
             }
         }
     }
-    vec_erase_if(p, player.projectiles, !p->active);
-    pthread_mutex_unlock(&game_mutex);
 
+    p->pos.y += p->dir.y * projectile_speed * get_dt();
+    if (p->pos.y - projectile_radius < 0) {
+        p->pos.y = p->pos.y + projectile_radius + 0.01f;
+        p->dir.y *= -1;
+        p->bounce++;
+        if (p->bounce > max_bounces) {
+            p->active = false;
+        }
+    } else if (p->pos.y + projectile_radius > MAP_SIZE) {
+        p->pos.y = p->pos.y - projectile_radius - 0.01f;
+        p->dir.y *= -1;
+        p->bounce++;
+        if (p->bounce > max_bounces) {
+            p->active = false;
+        }
+    }
+    for (int i = 0; i < obstacles_size; i++) {
+        circle_collider projectile_collider = {.pos = p->pos,
+                                               .radius = projectile_radius};
+        rect_collider tile_collider = {
+            .pos = obstacles[i], .size = VEC2F(PATTERN_SIZE, PATTERN_SIZE)};
+
+        if (check_collision_circle_rect(projectile_collider, tile_collider) &&
+            p->active) {
+            if (p->dir.y > 0) {
+                p->pos.y = tile_collider.pos.y - projectile_radius - 0.01f;
+            } else if (p->dir.y < 0) {
+                p->pos.y = tile_collider.pos.y + tile_collider.size.y +
+                           projectile_radius + 0.01f;
+            }
+            p->dir.y *= -1;
+            p->bounce++;
+            if (p->bounce > max_bounces) {
+                p->active = false;
+            }
+        }
+    }
+}
+
+void game_handle_projectiles() {
     pthread_mutex_lock(&game_mutex);
-    foreach_vec(p, enemy.projectiles) {
-        p->pos.x += p->dir.x * projectile_speed * get_dt();
-        p->pos.y += p->dir.y * projectile_speed * get_dt();
-        if (p->pos.x < 0 || p->pos.x > MAP_SIZE || p->pos.y < 0 ||
-            p->pos.y > MAP_SIZE) {
+    foreach_vec(p, player.projectiles) {
+        game_handle_projectile(p);
+
+        rect_collider enemy_collider = {.pos = enemy.attribs.pos,
+                                        .size = enemy.attribs.size};
+        circle_collider projectile_collider = {.pos = p->pos,
+                                               .radius = projectile_radius};
+        if (check_collision_circle_rect(projectile_collider, enemy_collider) &&
+            p->active && enemy_exist) {
             p->active = false;
         }
 
-        {
+        if (cur_mode == MODE_FRIENDLY_FIRE && p->bounce >= 1) {
             rect_collider player_collider = {.pos = player.attribs.pos,
                                              .size = player.attribs.size};
             circle_collider projectile_collider = {.pos = p->pos,
@@ -469,16 +576,32 @@ void game_handle_projectiles() {
                 health--;
             }
         }
+    }
+    vec_erase_if(p, player.projectiles, !p->active);
+    pthread_mutex_unlock(&game_mutex);
 
-        for (int i = 0; i < obstacles_size; i++) {
+    pthread_mutex_lock(&game_mutex);
+    foreach_vec(p, enemy.projectiles) {
+        game_handle_projectile(p);
+
+        rect_collider player_collider = {.pos = player.attribs.pos,
+                                         .size = player.attribs.size};
+        circle_collider projectile_collider = {.pos = p->pos,
+                                               .radius = projectile_radius};
+        if (check_collision_circle_rect(projectile_collider, player_collider) &&
+            p->active && health > 0) {
+            p->active = false;
+            health--;
+        }
+
+        if (cur_mode == MODE_FRIENDLY_FIRE && p->bounce >= 1) {
+            rect_collider enemy_collider = {.pos = enemy.attribs.pos,
+                                            .size = enemy.attribs.size};
             circle_collider projectile_collider = {.pos = p->pos,
                                                    .radius = projectile_radius};
-            rect_collider tile_collider = {
-                .pos = obstacles[i], .size = VEC2F(PATTERN_SIZE, PATTERN_SIZE)};
-
             if (check_collision_circle_rect(projectile_collider,
-                                            tile_collider) &&
-                p->active) {
+                                            enemy_collider) &&
+                p->active && health > 0) {
                 p->active = false;
             }
         }

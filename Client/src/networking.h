@@ -11,12 +11,22 @@ typedef enum : uint8_t {
     PACKET_JOIN,
     PACKET_DEAD,
     PACKET_NEW_ROUND,
-    PACKET_RECEIVE_OBSTACLES
+    PACKET_RECEIVE_OBSTACLES,
+    PACKET_RECEIVE_GAME_MODE
 } packet_id;
 
-#define EXTERN_NETWORKING_H_VARIABLES   \
-    extern client_t client;             \
-    extern int id;                      \
+typedef enum {
+    MODE_CLASSIC = 0,  // Normal - 1 time bounce
+    MODE_SOLID,        // Normal - no bounce
+    MODE_BOUNCY,       // Normal - 3 time bounce
+    MODE_CHAOS,        // Normal - (almost) infinite bounce
+    MODE_FRIENDLY_FIRE // After 1 bounce your bullets can hurt you too - 3 time
+                       // bounce
+} game_mode;
+
+#define EXTERN_NETWORKING_H_VARIABLES                                          \
+    extern client_t client;                                                    \
+    extern int id;                                                             \
     extern pthread_mutex_t game_mutex;
 
 void networking_init();

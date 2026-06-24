@@ -15,6 +15,8 @@ unsigned int next_round_dt_ms = 5000;
 vec2f obstacles[(MAP_SIZE / PATTERN_SIZE) * (MAP_SIZE / PATTERN_SIZE)];
 int obstacles_size = 0;
 
+game_mode cur_mode = MODE_CLASSIC;
+
 server_t server;
 
 void network_gen_map() {
@@ -24,7 +26,8 @@ void network_gen_map() {
         int col = i % (MAP_SIZE / PATTERN_SIZE);
         int row = i / (MAP_SIZE / PATTERN_SIZE);
         if (pcg_rand() % 5 == 0 && col != 0 &&
-            col != (MAP_SIZE / PATTERN_SIZE) - 1) {
+            col != (MAP_SIZE / PATTERN_SIZE) - 1 && row != 0 &&
+            row != (MAP_SIZE / PATTERN_SIZE) - 1) {
             obstacles[obstacles_size++] =
                 VEC2F(col * PATTERN_SIZE, row * PATTERN_SIZE);
         }
@@ -35,13 +38,12 @@ void network_init() {
     server_init(&server, 7777, ENET_HOST_ANY, MAX_CLIENTS);
 
     pcg_rand_seed();
-
+    
+    cur_mode = pcg_rand() % GAME_MODE_SIZE;
     network_gen_map();
 }
 
-void network_destroy() {
-    server_destroy(&server);
-}
+void network_destroy() { server_destroy(&server); }
 
 // {{{ network_run() Helper
 
@@ -95,6 +97,13 @@ void network_handle_connection(ENetEvent *event) {
                 packet_write_float(&writer, obstacles[i].x);
                 packet_write_float(&writer, obstacles[i].y);
             }
+            send_packet_to_client(event->peer, &writer, NET_PACKET_RELIABLE);
+        }
+
+        {
+            packet_writer writer;
+            packet_writer_init(&writer, PACKET_RECEIVE_GAME_MODE);
+            packet_write_int(&writer, cur_mode);
             send_packet_to_client(event->peer, &writer, NET_PACKET_RELIABLE);
         }
     }
@@ -184,6 +193,14 @@ void network_handle_new_round() {
                 packet_write_float(&writer, obstacles[i].x);
                 packet_write_float(&writer, obstacles[i].y);
             }
+            broadcast_packet(&server, &writer, NET_PACKET_RELIABLE);
+        }
+
+        {
+            cur_mode = pcg_rand() % GAME_MODE_SIZE;
+            packet_writer writer;
+            packet_writer_init(&writer, PACKET_RECEIVE_GAME_MODE);
+            packet_write_int(&writer, cur_mode);
             broadcast_packet(&server, &writer, NET_PACKET_RELIABLE);
         }
 
