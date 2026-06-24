@@ -19,5 +19,3 @@ build_web
 cpstd
 cpl.h
 web_index_html
-external
-shaders

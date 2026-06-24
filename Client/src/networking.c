@@ -120,7 +120,7 @@ void parse_data(char *packet_data, size_t packet_data_len, void *arg) {
 }
 
 void networking_init() {
-    if (client_create(&client, "127.0.0.1", 7777, NET_SEC(5))) {
+    if (client_create(&client, "100.85.197.121", 7777, NET_SEC(5))) {
         printf("Connection successful\n");
     } else {
         fprintf(stderr, "Connection failed\n");
