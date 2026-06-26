@@ -27,7 +27,10 @@ endif()
 #### Dev ####
 
 if (CMAKE_BUILD_TYPE STREQUAL "Dev")
-    add_compile_options(-g -O2 -fno-omit-frame-pointer -U NDEBUG)
+    add_compile_options(-g -O2 -fno-omit-frame-pointer -fsanitize=address,undefined -U NDEBUG)
+    add_link_options(
+        -fsanitize=address,undefined
+    )
 endif()
 
 #### Release ####
@@ -117,17 +120,13 @@ add_executable(${CMAKE_PROJECT_NAME}
     src/networking.c
 )
 
-# CPSTD
+# CPSTD (find_package does not work for cpstd on Mac)
 find_package(cpstd REQUIRED)
 target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE cpstd::cpstd)
 
-# OpenMP, pthread, GLFW, GLAD, STB, FT & ENet
+# Pthread, GLFW, GLAD, STB, FT & ENet
 target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE ${stb_SOURCE_DIR})
 target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE ${enet_SOURCE_DIR}/include)
-
-if (NOT EMSCRIPTEN)
-    find_package(OpenMP REQUIRED)
-endif()
 
 set(THREADS_PREFER_PTHREAD_FLAG TRUE)
 find_package(Threads REQUIRED)
@@ -138,21 +137,15 @@ if (NOT EMSCRIPTEN)
     set(GLFW_BUILD_WAYLAND ON CACHE BOOL "" FORCE)
     set(GLFW_BUILD_X11 OFF CACHE BOOL "" FORCE)
 
-    target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE glfw OpenMP::OpenMP_C)
-endif()
-
-if (NOT EMSCRIPTEN)
-    target_compile_options(${CMAKE_PROJECT_NAME} PRIVATE -mavx2 -mfma)
+    target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE glfw)
 endif()
 
 if (EMSCRIPTEN)
     set(ASSETS_DIR "${CMAKE_SOURCE_DIR}/assets")
     set(SHADERS_DIR "${CMAKE_SOURCE_DIR}/shaders")
-    set(SHADERS_CUSTOM_DIR "${CMAKE_SOURCE_DIR}/shaders_custom")
     target_link_options(${CMAKE_PROJECT_NAME} PRIVATE
         "SHELL:--preload-file ${ASSETS_DIR}@/assets"
         "SHELL:--preload-file ${SHADERS_DIR}@/shaders"
-        # "SHELL:--preload-file ${SHADERS_CUSTOM_DIR}@/shaders_custom"
         "-sSTACK_SIZE=8mb"
 	    "-sMIN_WEBGL_VERSION=2"
 	    "-sMAX_WEBGL_VERSION=2"

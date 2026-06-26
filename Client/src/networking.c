@@ -15,7 +15,7 @@ void parse_data(char *packet_data, size_t packet_data_len, void *arg) {
     (void)arg;
 
     packet_reader reader;
-    packet_id flag =
+    uint8_t flag =
         packet_reader_init(&reader, (uint8_t *)packet_data, packet_data_len);
 
     switch (flag) {
@@ -114,6 +114,9 @@ void parse_data(char *packet_data, size_t packet_data_len, void *arg) {
         cur_mode = mode;
         break;
     }
+    case NET_PACKET_AUDIO_VOICE_MSG:
+        audio_client_handle_voice_msg(&reader);
+        break;
     default:
         break;
     }

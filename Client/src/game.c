@@ -54,6 +54,8 @@ int obstacles_size = 0;
 font f;
 
 audio shoot_sfx;
+audio projectile_collision_sfx;
+audio hit_sfx;
 
 // }}}
 
@@ -73,14 +75,18 @@ void game_run() {
 
     while (!window_should_close()) {
         update();
+        audio_update();
 
-        game_handle_player();
+        if (enemy_exist) {
+            game_handle_player();
+        }
         game_draw();
 
         end_frame();
     }
+    font_delete(&f);
     audio_close();
-    close_window();
+    window_close();
 }
 
 void game_init_start_pos() {
@@ -100,14 +106,17 @@ void game_init_start_pos() {
 }
 
 void game_init() {
-    init_window(800, 800, "Multiplayer Game", OPENGL_VER_3_3);
+    window_init(800, 800, "Multiplayer Game", OPENGL_VER_3_3);
     audio_init();
+    audio_init_voice_chat(&client, &id);
     enable_vsync(false);
     pcg_rand_seed();
 
-    create_font(&f, "assets/fonts/default.ttf", "default", FILTER_LINEAR);
+    font_load(&f, "assets/fonts/default.ttf", "default", FILTER_LINEAR);
 
-    shoot_sfx = load_audio("assets/sounds/shoot.mp3");
+    shoot_sfx = audio_load("assets/sounds/shoot.mp3");
+    projectile_collision_sfx = audio_load("assets/sounds/collision.mp3");
+    hit_sfx = audio_load("assets/sounds/hit.mp3");
 
     game_init_start_pos();
 
@@ -219,7 +228,7 @@ void game_draw_ui() {
         }
         snprintf(txt, 100, "Weapon: %s", weapon);
 
-        vec2f txt_size = get_text_size(&f, txt, scale);
+        vec2f txt_size = text_get_size(&f, txt, scale);
         draw_text_shadow(&f, txt,
                          VEC2F(get_screen_width() - txt_size.x - off.x,
                                get_screen_height() - txt_size.y - off.y),
@@ -236,7 +245,7 @@ void game_draw_ui() {
         {
             char txt[100];
             snprintf(txt, 100, "Opponent: %d", enemy.score);
-            float txt_width = get_text_size(&f, txt, scale).x;
+            float txt_width = text_get_size(&f, txt, scale).x;
             draw_text_shadow(
                 &f, txt, VEC2F(get_screen_width() - txt_width - off.x, off.y),
                 scale, enemy.attribs.color, VEC2F(3, 3), ORANGE);
@@ -251,7 +260,7 @@ void game_draw_ui() {
         {
             char txt[100];
             snprintf(txt, 100, "You: %d", player.score);
-            float txt_width = get_text_size(&f, txt, scale).x;
+            float txt_width = text_get_size(&f, txt, scale).x;
             draw_text_shadow(
                 &f, txt, VEC2F(get_screen_width() - txt_width - off.x, off.y),
                 scale, player.attribs.color, VEC2F(3, 3), LIGHT_BLUE);
@@ -478,6 +487,11 @@ void game_handle_projectile(projectile_t *p) {
         p->pos.x = projectile_radius + 0.01f;
         p->dir.x *= -1;
         p->bounce++;
+
+        if (cur_mode != MODE_CHAOS) {
+            audio_play_sound(&projectile_collision_sfx);
+        }
+
         if (p->bounce > max_bounces) {
             p->active = false;
         }
@@ -485,6 +499,11 @@ void game_handle_projectile(projectile_t *p) {
         p->pos.x = MAP_SIZE - projectile_radius - 0.01f;
         p->dir.x *= -1;
         p->bounce++;
+
+        if (cur_mode != MODE_CHAOS) {
+            audio_play_sound(&projectile_collision_sfx);
+        }
+
         if (p->bounce > max_bounces) {
             p->active = false;
         }
@@ -505,6 +524,11 @@ void game_handle_projectile(projectile_t *p) {
             }
             p->dir.x *= -1;
             p->bounce++;
+
+            if (cur_mode != MODE_CHAOS) {
+                audio_play_sound(&projectile_collision_sfx);
+            }
+
             if (p->bounce > max_bounces) {
                 p->active = false;
             }
@@ -516,6 +540,11 @@ void game_handle_projectile(projectile_t *p) {
         p->pos.y = p->pos.y + projectile_radius + 0.01f;
         p->dir.y *= -1;
         p->bounce++;
+
+        if (cur_mode != MODE_CHAOS) {
+            audio_play_sound(&projectile_collision_sfx);
+        }
+
         if (p->bounce > max_bounces) {
             p->active = false;
         }
@@ -523,6 +552,11 @@ void game_handle_projectile(projectile_t *p) {
         p->pos.y = p->pos.y - projectile_radius - 0.01f;
         p->dir.y *= -1;
         p->bounce++;
+
+        if (cur_mode != MODE_CHAOS) {
+            audio_play_sound(&projectile_collision_sfx);
+        }
+
         if (p->bounce > max_bounces) {
             p->active = false;
         }
@@ -543,6 +577,11 @@ void game_handle_projectile(projectile_t *p) {
             }
             p->dir.y *= -1;
             p->bounce++;
+
+            if (cur_mode != MODE_CHAOS) {
+                audio_play_sound(&projectile_collision_sfx);
+            }
+
             if (p->bounce > max_bounces) {
                 p->active = false;
             }
@@ -561,6 +600,7 @@ void game_handle_projectiles() {
                                                .radius = projectile_radius};
         if (check_collision_circle_rect(projectile_collider, enemy_collider) &&
             p->active && enemy_exist) {
+            audio_play_sound(&hit_sfx);
             p->active = false;
         }
 
@@ -572,6 +612,7 @@ void game_handle_projectiles() {
             if (check_collision_circle_rect(projectile_collider,
                                             player_collider) &&
                 p->active && health > 0) {
+                audio_play_sound(&hit_sfx);
                 p->active = false;
                 health--;
             }
@@ -590,6 +631,7 @@ void game_handle_projectiles() {
                                                .radius = projectile_radius};
         if (check_collision_circle_rect(projectile_collider, player_collider) &&
             p->active && health > 0) {
+            audio_play_sound(&hit_sfx);
             p->active = false;
             health--;
         }
@@ -602,6 +644,7 @@ void game_handle_projectiles() {
             if (check_collision_circle_rect(projectile_collider,
                                             enemy_collider) &&
                 p->active && health > 0) {
+                audio_play_sound(&hit_sfx);
                 p->active = false;
             }
         }
@@ -612,7 +655,7 @@ void game_handle_projectiles() {
 
 void game_handle_controls() {
     if (is_key_pressed(KEY_ESCAPE)) {
-        destroy_window();
+        window_destroy();
     }
 
     get_cam_2D()->pos =
@@ -664,7 +707,7 @@ void game_sync_death() {
     packet_writer writer;
     packet_writer_init(&writer, PACKET_DEAD);
     packet_write_int(&writer, id);
-    send_packet_to_server(&client, &writer, NET_PACKET_RELIABLE);
+    packet_send_to_server(&client, &writer, NET_PACKET_RELIABLE);
 }
 
 void game_sync_pos() {
@@ -673,8 +716,7 @@ void game_sync_pos() {
     packet_write_int(&writer, id);
     packet_write_float(&writer, player.attribs.pos.x);
     packet_write_float(&writer, player.attribs.pos.y);
-    send_packet_to_server(&client, &writer,
-                          ENET_PACKET_FLAG_UNRELIABLE_FRAGMENT);
+    packet_send_to_server(&client, &writer, NET_PACKET_UNRELIABLE);
 }
 
 void game_sync_projectiles(vec2f pos, vec2f *dir, int count) {
@@ -688,7 +730,7 @@ void game_sync_projectiles(vec2f pos, vec2f *dir, int count) {
         packet_write_float(&writer, dir[i].x);
         packet_write_float(&writer, dir[i].y);
     }
-    send_packet_to_server(&client, &writer, NET_PACKET_RELIABLE);
+    packet_send_to_server(&client, &writer, NET_PACKET_RELIABLE);
 }
 
 // }}}

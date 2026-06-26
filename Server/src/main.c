@@ -1,4 +1,4 @@
-#define CPL_IMPLEMENTATION
+#define CPL_IMPL
 #include <cpl/cpl.h>
 
 #include "network.h"
