@@ -11,114 +11,113 @@ client_t client;
 int id = -1;
 pthread_mutex_t game_mutex = PTHREAD_MUTEX_INITIALIZER;
 
-void parse_data(char *packet_data, size_t packet_data_len, void *arg) {
+void parse_data(char *packet_data, size_t packet_data_len, net_channels channel, void *arg) {
     (void)arg;
-
+ 
     packet_reader reader;
-    uint8_t flag =
-        packet_reader_init(&reader, (uint8_t *)packet_data, packet_data_len);
-
-    switch (flag) {
-    case PACKET_RECEIVE_ID:
-        id = packet_read_int(&reader);
-        break;
-    case PACKET_POS_SYNC: {
-        if (id == packet_read_int(&reader)) {
-            break;
-        }
-        enemy.attribs.pos.x = packet_read_float(&reader);
-        enemy.attribs.pos.y = packet_read_float(&reader);
-        break;
-    }
-    case PACKET_PROJECTILE_SYNC: {
-        if (id == packet_read_int(&reader)) {
-            break;
-        }
-        vec2f epos =
-            VEC2F(packet_read_float(&reader), packet_read_float(&reader));
-        int count = packet_read_int(&reader);
-
-        play_shoot_sfx();
-
-        for (int i = 0; i < count; i++) {
-            vec2f dir =
-                VEC2F(packet_read_float(&reader), packet_read_float(&reader));
-
-            unsigned int delay_ms = client.peer->roundTripTime;
-            float elapsed = (float)delay_ms * 0.001f;
-
-            vec2f pos = VEC2F(epos.x + (dir.x * projectile_speed * elapsed),
-                              epos.y + (dir.y * projectile_speed * elapsed));
-
-            pthread_mutex_lock(&game_mutex);
-            vec_push(enemy.projectiles, PROJECTILE_INITIALIZER(pos, dir));
-            pthread_mutex_unlock(&game_mutex);
-        }
-        break;
-    }
-    case PACKET_JOIN:
-        if (packet_read_int(&reader) != id) {
-            enemy_exist = true;
-        }
-        break;
-    case PACKET_LEAVE:
-        if (packet_read_int(&reader) != id) {
-            enemy_exist = false;
-        }
-        break;
-    case PACKET_DEAD:
-        if (packet_read_int(&reader) != id) {
-            enemy_exist = false;
-            player.score++;
-        }
-        break;
-    case PACKET_NEW_ROUND:
-        game_init_start_pos();
-        sent_death_msg = false;
-        enemy_exist = true;
-        selected_weapon = pcg_rand() % WEAPONS_SIZE;
-        health = MAX_HEALTH;
-        pthread_mutex_lock(&game_mutex);
-        vec_clear(enemy.projectiles);
-        vec_clear(player.projectiles);
-        pthread_mutex_unlock(&game_mutex);
-        break;
-    case PACKET_RECEIVE_OBSTACLES:
-        pthread_mutex_lock(&game_mutex);
-        obstacles_size = packet_read_int(&reader);
-        for (int i = 0; i < obstacles_size; i++) {
-            obstacles[i].x = packet_read_float(&reader);
-            obstacles[i].y = packet_read_float(&reader);
-        }
-        pthread_mutex_unlock(&game_mutex);
-        break;
-    case PACKET_RECEIVE_GAME_MODE: {
-        game_mode mode = packet_read_int(&reader);
-        switch (mode) {
-        case MODE_CLASSIC:
-            max_bounces = 1;
-            break;
-        case MODE_SOLID:
-            max_bounces = 0;
-            break;
-        case MODE_BOUNCY:
-            max_bounces = 3;
-            break;
-        case MODE_CHAOS:
-            max_bounces = (unsigned int)-1;
-            break;
-        case MODE_FRIENDLY_FIRE:
-            max_bounces = 3;
-            break;
-        }
-        cur_mode = mode;
-        break;
-    }
-    case NET_PACKET_AUDIO_VOICE_MSG:
+    uint8_t flag = packet_reader_init(&reader, (uint8_t *)packet_data, packet_data_len);
+    if (channel == NET_CHANNEL_VOICE_CHAT) {
         audio_client_handle_voice_msg(&reader);
-        break;
-    default:
-        break;
+    } else {
+        switch (flag) {
+        case PACKET_RECEIVE_ID:
+            id = packet_read_int(&reader);
+            break;
+        case PACKET_POS_SYNC: {
+            if (id == packet_read_int(&reader)) {
+                break;
+            }
+            enemy.attribs.pos.x = packet_read_float(&reader);
+            enemy.attribs.pos.y = packet_read_float(&reader);
+            break;
+        }
+        case PACKET_PROJECTILE_SYNC: {
+            if (id == packet_read_int(&reader)) {
+                break;
+            }
+            vec2f epos =
+                VEC2F(packet_read_float(&reader), packet_read_float(&reader));
+            int count = packet_read_int(&reader);
+
+            play_shoot_sfx();
+
+            for (int i = 0; i < count; i++) {
+                vec2f dir =
+                    VEC2F(packet_read_float(&reader), packet_read_float(&reader));
+
+                unsigned int delay_ms = client.peer->roundTripTime;
+                float elapsed = (float)delay_ms * 0.001f;
+
+                vec2f pos = VEC2F(epos.x + (dir.x * projectile_speed * elapsed),
+                                  epos.y + (dir.y * projectile_speed * elapsed));
+
+                pthread_mutex_lock(&game_mutex);
+                vec_push(enemy.projectiles, PROJECTILE_INITIALIZER(pos, dir));
+                pthread_mutex_unlock(&game_mutex);
+            }
+            break;
+        }
+        case PACKET_JOIN:
+            if (packet_read_int(&reader) != id) {
+                enemy_exist = true;
+            }
+            break;
+        case PACKET_LEAVE:
+            if (packet_read_int(&reader) != id) {
+                enemy_exist = false;
+            }
+            break;
+        case PACKET_DEAD:
+            if (packet_read_int(&reader) != id) {
+                enemy_exist = false;
+                player.score++;
+            }
+            break;
+        case PACKET_NEW_ROUND:
+            game_init_start_pos();
+            sent_death_msg = false;
+            enemy_exist = true;
+            selected_weapon = pcg_rand() % WEAPONS_SIZE;
+            health = MAX_HEALTH;
+            pthread_mutex_lock(&game_mutex);
+            vec_clear(enemy.projectiles);
+            vec_clear(player.projectiles);
+            pthread_mutex_unlock(&game_mutex);
+            break;
+        case PACKET_RECEIVE_OBSTACLES:
+            pthread_mutex_lock(&game_mutex);
+            obstacles_size = packet_read_int(&reader);
+            for (int i = 0; i < obstacles_size; i++) {
+                obstacles[i].x = packet_read_float(&reader);
+                obstacles[i].y = packet_read_float(&reader);
+            }
+            pthread_mutex_unlock(&game_mutex);
+            break;
+        case PACKET_RECEIVE_GAME_MODE: {
+            game_mode mode = packet_read_int(&reader);
+            switch (mode) {
+            case MODE_CLASSIC:
+                max_bounces = 1;
+                break;
+            case MODE_SOLID:
+                max_bounces = 0;
+                break;
+            case MODE_BOUNCY:
+                max_bounces = 3;
+                break;
+            case MODE_CHAOS:
+                max_bounces = (unsigned int)-1;
+                break;
+            case MODE_FRIENDLY_FIRE:
+                max_bounces = 3;
+                break;
+            }
+            cur_mode = mode;
+            break;
+        }
+        default:
+            break;
+        }
     }
 }
 

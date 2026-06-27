@@ -67,7 +67,7 @@ void network_handle_connection(ENetEvent *event) {
             packet_writer writer;
             packet_writer_init(&writer, PACKET_RECEIVE_ID);
             packet_write_int(&writer, new_player_id);
-            packet_send_to_client(event->peer, &writer, NET_PACKET_RELIABLE);
+            packet_send_to_client(event->peer, &writer, NET_PACKET_RELIABLE, NET_CHANNEL_RELIABLE);
         }
 
         printf("Client with ID %d connected!\n", new_player_id);
@@ -76,7 +76,7 @@ void network_handle_connection(ENetEvent *event) {
             packet_writer writer;
             packet_writer_init(&writer, PACKET_JOIN);
             packet_write_int(&writer, new_player_id);
-            packet_broadcast(&server, &writer, NET_PACKET_RELIABLE);
+            packet_broadcast(&server, &writer, NET_PACKET_RELIABLE, NET_CHANNEL_RELIABLE);
         }
 
         for (player_type id = 0; id < PLAYER_TYPE_SIZE; id++) {
@@ -85,7 +85,7 @@ void network_handle_connection(ENetEvent *event) {
                 packet_writer_init(&writer, PACKET_JOIN);
                 packet_write_int(&writer, id);
                 packet_send_to_client(event->peer, &writer,
-                                      NET_PACKET_RELIABLE);
+                                      NET_PACKET_RELIABLE, NET_CHANNEL_RELIABLE);
             }
         }
 
@@ -97,14 +97,14 @@ void network_handle_connection(ENetEvent *event) {
                 packet_write_float(&writer, obstacles[i].x);
                 packet_write_float(&writer, obstacles[i].y);
             }
-            packet_send_to_client(event->peer, &writer, NET_PACKET_RELIABLE);
+            packet_send_to_client(event->peer, &writer, NET_PACKET_RELIABLE, NET_CHANNEL_RELIABLE);
         }
 
         {
             packet_writer writer;
             packet_writer_init(&writer, PACKET_RECEIVE_GAME_MODE);
             packet_write_int(&writer, cur_mode);
-            packet_send_to_client(event->peer, &writer, NET_PACKET_RELIABLE);
+            packet_send_to_client(event->peer, &writer, NET_PACKET_RELIABLE, NET_CHANNEL_RELIABLE);
         }
     }
 }
@@ -124,7 +124,7 @@ void network_handle_packets(ENetEvent *event) {
         packet_write_int(&writer, packet_read_int(&reader));
         packet_write_float(&writer, packet_read_float(&reader));
         packet_write_float(&writer, packet_read_float(&reader));
-        packet_broadcast(&server, &writer, NET_PACKET_UNRELIABLE);
+        packet_broadcast(&server, &writer, NET_PACKET_UNRELIABLE, NET_CHANNEL_UNRELIABLE);
         break;
     }
     case PACKET_PROJECTILE_SYNC: {
@@ -139,14 +139,14 @@ void network_handle_packets(ENetEvent *event) {
             packet_write_float(&writer, packet_read_float(&reader));
             packet_write_float(&writer, packet_read_float(&reader));
         }
-        packet_broadcast(&server, &writer, NET_PACKET_RELIABLE);
+        packet_broadcast(&server, &writer, NET_PACKET_RELIABLE, NET_CHANNEL_RELIABLE);
         break;
     }
     case PACKET_DEAD: {
         packet_writer writer;
         packet_writer_init(&writer, PACKET_DEAD);
         packet_write_int(&writer, packet_read_int(&reader));
-        packet_broadcast(&server, &writer, NET_PACKET_RELIABLE);
+        packet_broadcast(&server, &writer, NET_PACKET_RELIABLE, NET_CHANNEL_RELIABLE);
         round_end = true;
         last_round_ms = enet_time_get();
 
@@ -173,7 +173,7 @@ void network_handle_disconnection(ENetEvent *event) {
     packet_writer writer;
     packet_writer_init(&writer, PACKET_LEAVE);
     packet_write_int(&writer, id);
-    packet_broadcast(&server, &writer, NET_PACKET_RELIABLE);
+    packet_broadcast(&server, &writer, NET_PACKET_RELIABLE, NET_CHANNEL_RELIABLE);
 }
 
 void network_handle_new_round() {
@@ -182,7 +182,7 @@ void network_handle_new_round() {
         {
             packet_writer writer;
             packet_writer_init(&writer, PACKET_NEW_ROUND);
-            packet_broadcast(&server, &writer, NET_PACKET_RELIABLE);
+            packet_broadcast(&server, &writer, NET_PACKET_RELIABLE, NET_CHANNEL_RELIABLE);
         }
 
         {
@@ -195,7 +195,7 @@ void network_handle_new_round() {
                 packet_write_float(&writer, obstacles[i].x);
                 packet_write_float(&writer, obstacles[i].y);
             }
-            packet_broadcast(&server, &writer, NET_PACKET_RELIABLE);
+            packet_broadcast(&server, &writer, NET_PACKET_RELIABLE, NET_CHANNEL_RELIABLE);
         }
 
         {
@@ -203,7 +203,7 @@ void network_handle_new_round() {
             packet_writer writer;
             packet_writer_init(&writer, PACKET_RECEIVE_GAME_MODE);
             packet_write_int(&writer, cur_mode);
-            packet_broadcast(&server, &writer, NET_PACKET_RELIABLE);
+            packet_broadcast(&server, &writer, NET_PACKET_RELIABLE, NET_CHANNEL_RELIABLE);
         }
 
         printf("Started new round!\n");

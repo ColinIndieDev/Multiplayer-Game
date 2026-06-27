@@ -21,12 +21,14 @@ float weapon_cooldowns[WEAPONS_SIZE] = {
     0.2f  // WEAPON_PISTOL
 };
 
-player_t player = {.attribs.pos = VEC2F(0, 0),
-                   .attribs.size = VEC2F(40, 40),
-                   .attribs.color = BLUE,
+player_t player = {
+    .attribs.pos = VEC2F(0, 0),
+    .attribs.size = VEC2F(40, 40),
+    .attribs.color = BLUE,
 
-                   .score = 0,
-                   .projectiles = NULL};
+    .score = 0,
+    .projectiles = NULL
+};
 vec2f vel = VEC2F(0, 0);
 weapons selected_weapon = WEAPON_SHOTGUN;
 float last_shot = 0.0f;
@@ -34,12 +36,14 @@ int health = MAX_HEALTH;
 bool sent_death_msg = false;
 float speed = 100.0f;
 
-player_t enemy = {.attribs.pos = VEC2F(0, 0),
-                  .attribs.size = VEC2F(40, 40),
-                  .attribs.color = RED,
+player_t enemy = {
+    .attribs.pos = VEC2F(0, 0),
+    .attribs.size = VEC2F(40, 40),
+    .attribs.color = RED,
 
-                  .score = 0,
-                  .projectiles = NULL};
+    .score = 0,
+    .projectiles = NULL
+};
 bool enemy_exist = false;
 
 float projectile_speed = 500.0f;
@@ -317,7 +321,9 @@ void game_draw() {
 
 // {{{ SFX
 
-void play_shoot_sfx() { audio_play_sound(&shoot_sfx); }
+void play_shoot_sfx() { 
+    audio_play_sound(&shoot_sfx); 
+}
 
 // }}}
 
@@ -665,16 +671,16 @@ void game_handle_controls() {
                   (get_screen_height() * 0.5f));
 
     vel = VEC2F(0, 0);
-    if (is_key_down(KEY_W)) {
+    if (is_key_down(KEY_LETTER_W)) {
         vel.y = -1;
     }
-    if (is_key_down(KEY_A)) {
+    if (is_key_down(KEY_LETTER_A)) {
         vel.x = -1;
     }
-    if (is_key_down(KEY_S)) {
+    if (is_key_down(KEY_LETTER_S)) {
         vel.y = 1;
     }
-    if (is_key_down(KEY_D)) {
+    if (is_key_down(KEY_LETTER_D)) {
         vel.x = 1;
     }
 }
@@ -707,7 +713,7 @@ void game_sync_death() {
     packet_writer writer;
     packet_writer_init(&writer, PACKET_DEAD);
     packet_write_int(&writer, id);
-    packet_send_to_server(&client, &writer, NET_PACKET_RELIABLE);
+    packet_send_to_server(&client, &writer, NET_PACKET_RELIABLE, NET_CHANNEL_RELIABLE);
 }
 
 void game_sync_pos() {
@@ -716,7 +722,7 @@ void game_sync_pos() {
     packet_write_int(&writer, id);
     packet_write_float(&writer, player.attribs.pos.x);
     packet_write_float(&writer, player.attribs.pos.y);
-    packet_send_to_server(&client, &writer, NET_PACKET_UNRELIABLE);
+    packet_send_to_server(&client, &writer, NET_PACKET_UNRELIABLE, NET_CHANNEL_UNRELIABLE);
 }
 
 void game_sync_projectiles(vec2f pos, vec2f *dir, int count) {
@@ -730,7 +736,7 @@ void game_sync_projectiles(vec2f pos, vec2f *dir, int count) {
         packet_write_float(&writer, dir[i].x);
         packet_write_float(&writer, dir[i].y);
     }
-    packet_send_to_server(&client, &writer, NET_PACKET_RELIABLE);
+    packet_send_to_server(&client, &writer, NET_PACKET_RELIABLE, NET_CHANNEL_RELIABLE);
 }
 
 // }}}
