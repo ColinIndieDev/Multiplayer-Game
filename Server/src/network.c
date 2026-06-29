@@ -7,6 +7,7 @@
 bool running = true;
 
 bool player_active[PLAYER_TYPE_SIZE] = {false};
+bool player_alive[PLAYER_TYPE_SIZE] = {true};
 
 bool round_end = false;
 unsigned int last_round_ms = 0;
@@ -15,9 +16,19 @@ unsigned int next_round_dt_ms = 5000;
 vec2f obstacles[(MAP_SIZE / PATTERN_SIZE) * (MAP_SIZE / PATTERN_SIZE)];
 int obstacles_size = 0;
 
+int death_counter = 0;
+
 game_mode cur_mode = MODE_CLASSIC;
 
 server_t server;
+
+int players_active() {
+    int active = 0;
+    for (int i = 0; i < PLAYER_TYPE_SIZE; i++) {
+        active += player_active[i];
+    }
+    return active;
+}
 
 void network_gen_map() {
     obstacles_size = 0;
@@ -144,11 +155,26 @@ void network_handle_packets(ENetEvent *event) {
     }
     case PACKET_DEAD: {
         packet_writer writer;
+        int death_id = packet_read_int(&reader);
         packet_writer_init(&writer, PACKET_DEAD);
-        packet_write_int(&writer, packet_read_int(&reader));
+        packet_write_int(&writer, death_id);
         packet_broadcast(&server, &writer, NET_PACKET_RELIABLE, NET_CHANNEL_RELIABLE);
-        round_end = true;
-        last_round_ms = enet_time_get();
+        player_alive[death_id] = false;
+        death_counter++;
+        if (death_counter >= players_active() - 1 && players_active() >= 2) {
+            for (int i = 0; i < PLAYER_TYPE_SIZE; i++) {
+                if (player_alive[i] && player_active[i]) {
+                    packet_writer writer;
+                    packet_writer_init(&writer, PACKET_ADD_SCORE);
+                    packet_write_int(&writer, i);
+                    packet_broadcast(&server, &writer, NET_PACKET_RELIABLE, NET_CHANNEL_RELIABLE);
+                    break;
+                }
+            }
+            death_counter = 0;
+            round_end = true;
+            last_round_ms = enet_time_get();
+        }
 
         printf("Round ended!\n");
 
@@ -179,9 +205,15 @@ void network_handle_disconnection(ENetEvent *event) {
 void network_handle_new_round() {
     if (round_end && enet_time_get() >= last_round_ms + next_round_dt_ms) {
         round_end = false;
+        for (int i = 0; i < PLAYER_TYPE_SIZE; i++) {
+            player_alive[i] = true;
+        }
         {
             packet_writer writer;
             packet_writer_init(&writer, PACKET_NEW_ROUND);
+            for (int i = 0; i < PLAYER_TYPE_SIZE; i++) {
+                packet_write_bool(&writer, player_active[i]);
+            }
             packet_broadcast(&server, &writer, NET_PACKET_RELIABLE, NET_CHANNEL_RELIABLE);
         }
 

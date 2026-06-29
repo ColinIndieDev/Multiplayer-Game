@@ -2,6 +2,16 @@
 
 #include <stdint.h>
 
+#define MAX_CLIENTS 4
+
+typedef enum { 
+    PLAYER_RED = 0, 
+    PLAYER_BLUE,
+    PLAYER_YELLOW,
+    PLAYER_PURPLE,
+    PLAYER_TYPE_SIZE 
+} player_type;
+
 typedef enum : uint8_t {
     PACKET_INFO = 0,
     PACKET_RECEIVE_ID,
@@ -12,7 +22,8 @@ typedef enum : uint8_t {
     PACKET_DEAD,
     PACKET_NEW_ROUND,
     PACKET_RECEIVE_OBSTACLES,
-    PACKET_RECEIVE_GAME_MODE
+    PACKET_RECEIVE_GAME_MODE,
+    PACKET_ADD_SCORE
 } packet_id;
 
 typedef enum {

@@ -21,14 +21,7 @@ float weapon_cooldowns[WEAPONS_SIZE] = {
     0.2f  // WEAPON_PISTOL
 };
 
-player_t player = {
-    .attribs.pos = VEC2F(0, 0),
-    .attribs.size = VEC2F(40, 40),
-    .attribs.color = BLUE,
 
-    .score = 0,
-    .projectiles = NULL
-};
 vec2f vel = VEC2F(0, 0);
 weapons selected_weapon = WEAPON_SHOTGUN;
 float last_shot = 0.0f;
@@ -36,15 +29,49 @@ int health = MAX_HEALTH;
 bool sent_death_msg = false;
 float speed = 100.0f;
 
-player_t enemy = {
-    .attribs.pos = VEC2F(0, 0),
-    .attribs.size = VEC2F(40, 40),
-    .attribs.color = RED,
+#define PLAYER_SIZE 40
+player_t players[PLAYER_TYPE_SIZE] = {
+    {
+        .attribs.pos = VEC2F(0, 0),
+        .attribs.size = VEC2F(PLAYER_SIZE, PLAYER_SIZE),
+        .attribs.color = RED,
 
-    .score = 0,
-    .projectiles = NULL
+        .score = 0,
+        .projectiles = NULL
+    },
+    {
+        .attribs.pos = VEC2F(0, 0),
+        .attribs.size = VEC2F(PLAYER_SIZE, PLAYER_SIZE),
+        .attribs.color = BLUE,
+
+        .score = 0,
+        .projectiles = NULL
+    },
+    {
+        .attribs.pos = VEC2F(0, 0),
+        .attribs.size = VEC2F(PLAYER_SIZE, PLAYER_SIZE),
+        .attribs.color = YELLOW,
+
+        .score = 0,
+        .projectiles = NULL
+    },
+    {
+        .attribs.pos = VEC2F(0, 0),
+        .attribs.size = VEC2F(PLAYER_SIZE, PLAYER_SIZE),
+        .attribs.color = PURPLE,
+
+        .score = 0,
+        .projectiles = NULL
+    }
 };
-bool enemy_exist = false;
+vec2f player_start_positions[PLAYER_TYPE_SIZE] = {
+    {0, (MAP_SIZE * 0.5f) - (PLAYER_SIZE * 0.5f)},                      // RED
+    {MAP_SIZE - PLAYER_SIZE, (MAP_SIZE * 0.5f) - (PLAYER_SIZE * 0.5f)}, // BLUE
+    {(MAP_SIZE * 0.5f) - (PLAYER_SIZE * 0.5f), 0},                      // YELLOW
+    {(MAP_SIZE * 0.5f) - (PLAYER_SIZE * 0.5f), MAP_SIZE - PLAYER_SIZE}  // PURPLE
+
+};
+bool enemy_exist[PLAYER_TYPE_SIZE] = {false};
 
 float projectile_speed = 500.0f;
 float projectile_radius = 10.0f;
@@ -78,12 +105,14 @@ void game_run() {
     game_init();
 
     while (!window_should_close()) {
+        if (id == -1) {
+            continue;
+        }
         update();
         audio_update();
 
-        if (enemy_exist) {
-            game_handle_player();
-        }
+        game_handle_player();
+
         game_draw();
 
         end_frame();
@@ -94,18 +123,8 @@ void game_run() {
 }
 
 void game_init_start_pos() {
-    if (id == 0) {
-        player.attribs.pos =
-            VEC2F(0, (MAP_SIZE * 0.5f) - (player.attribs.size.y * 0.5f));
-        enemy.attribs.pos =
-            VEC2F(MAP_SIZE - enemy.attribs.size.x,
-                  (MAP_SIZE * 0.5f) - (enemy.attribs.size.y * 0.5f));
-    } else {
-        enemy.attribs.pos =
-            VEC2F(0, (MAP_SIZE * 0.5f) - (enemy.attribs.size.y * 0.5f));
-        player.attribs.pos =
-            VEC2F(MAP_SIZE - player.attribs.size.x,
-                  (MAP_SIZE * 0.5f) - (player.attribs.size.y * 0.5f));
+    for (int i = 0; i < PLAYER_TYPE_SIZE; i++) {
+        players[i].attribs.pos = player_start_positions[i];
     }
 }
 
@@ -124,9 +143,10 @@ void game_init() {
 
     game_init_start_pos();
 
-    player.projectiles = vec_init(player.projectiles, 10);
     pthread_mutex_lock(&game_mutex);
-    enemy.projectiles = vec_init(enemy.projectiles, 10);
+    for (int i = 0; i < PLAYER_TYPE_SIZE; i++) {
+        players[i].projectiles = vec_init(players[i].projectiles, 10);
+    }
     pthread_mutex_unlock(&game_mutex);
 
     selected_weapon = pcg_rand() % WEAPONS_SIZE;
@@ -154,33 +174,25 @@ void game_draw_map() {
 }
 
 void game_draw_players() {
-    draw_rect(player.attribs.pos, player.attribs.size,
-              health > 0 ? player.attribs.color
-                         : RGBA(player.attribs.color.r, player.attribs.color.g,
-                                player.attribs.color.b, 75),
-              0);
-
-    if (enemy_exist) {
-        draw_rect(enemy.attribs.pos, enemy.attribs.size, enemy.attribs.color,
-                  0);
-    }
-
-    pthread_mutex_lock(&game_mutex);
-    foreach_vec(p, player.projectiles) {
-        if (cur_mode == MODE_FRIENDLY_FIRE && p->bounce >= 1) {
-            draw_circle(p->pos, projectile_radius, YELLOW);
-        } else {
-            draw_circle(p->pos, projectile_radius, player.attribs.color);
+    for (int i = 0; i < PLAYER_TYPE_SIZE; i++) {
+        if (i == id) {
+            draw_rect(players[i].attribs.pos, players[i].attribs.size,
+              health > 0 ? players[i].attribs.color
+                         : RGBA(players[i].attribs.color.r, players[i].attribs.color.g,
+                                players[i].attribs.color.b, 75), 0);
+        } else if (enemy_exist[i]) {
+            draw_rect(players[i].attribs.pos, players[i].attribs.size, players[i].attribs.color, 0);
         }
     }
-    pthread_mutex_unlock(&game_mutex);
 
     pthread_mutex_lock(&game_mutex);
-    foreach_vec(p, enemy.projectiles) {
-        if (cur_mode == MODE_FRIENDLY_FIRE && p->bounce >= 1) {
-            draw_circle(p->pos, projectile_radius, YELLOW);
-        } else {
-            draw_circle(p->pos, projectile_radius, enemy.attribs.color);
+    for (int i = 0; i < PLAYER_TYPE_SIZE; i++) {
+        foreach_vec(p, players[i].projectiles) {
+            if (cur_mode == MODE_FRIENDLY_FIRE && p->bounce >= 1) {
+                draw_circle(p->pos, projectile_radius, WHITE);
+            } else {
+                draw_circle(p->pos, projectile_radius, players[i].attribs.color);
+            }
         }
     }
     pthread_mutex_unlock(&game_mutex);
@@ -203,7 +215,39 @@ void game_draw_health_bar() {
     draw_rect(bar_pos, bar_size, BLACK, 0);
     draw_rect(bar_pos,
               VEC2F(bar_size.x * ((float)health / MAX_HEALTH), bar_size.y),
-              player.attribs.color, 0);
+              players[id].attribs.color, 0);
+}
+
+char *weapon_enum_to_str(weapons weapon) {
+    switch (weapon) {
+    case WEAPON_SHOTGUN:
+        return "Shotgun";
+    case WEAPON_SHOCKWAVE:
+        return "Shockwave";
+    case WEAPON_GUN:
+        return "Gun";
+    case WEAPON_PISTOL:
+        return "Pistol";
+    default:
+        return "???";
+    }
+}
+
+char *game_mode_enum_to_str(game_mode mode) {
+    switch (mode) {
+    case MODE_CLASSIC:
+        return "Classic";
+    case MODE_SOLID:
+        return "Solid";
+    case MODE_BOUNCY:
+        return "Bouncy";
+    case MODE_CHAOS:
+        return "Chaos";
+    case MODE_FRIENDLY_FIRE:
+        return "Friendly Fire";
+    default:
+        return "???";
+    }
 }
 
 void game_draw_ui() {
@@ -211,93 +255,18 @@ void game_draw_ui() {
     vec2f off = VEC2F(10, 10);
 
     {
-        char txt[100];
-        char *weapon;
-        switch (selected_weapon) {
-        case WEAPON_SHOTGUN:
-            weapon = "Shotgun";
-            break;
-        case WEAPON_SHOCKWAVE:
-            weapon = "Shockwave";
-            break;
-        case WEAPON_GUN:
-            weapon = "Gun";
-            break;
-        case WEAPON_PISTOL:
-            weapon = "Pistol";
-            break;
-        default:
-            weapon = "???";
-            break;
-        }
-        snprintf(txt, 100, "Weapon: %s", weapon);
-
-        vec2f txt_size = text_get_size(&f, txt, scale);
-        draw_text_shadow(&f, txt,
-                         VEC2F(get_screen_width() - txt_size.x - off.x,
-                               get_screen_height() - txt_size.y - off.y),
-                         scale, WHITE, VEC2F(3, 3), BLACK);
+        vec2f txt_size = text_get_size(&f, scale, "Weapon: %s", weapon_enum_to_str(selected_weapon));
+        vec2f txt_pos = VEC2F(get_screen_width() - txt_size.x - off.x, get_screen_height() - txt_size.y - off.y); 
+        draw_text_shadow(&f, txt_pos, scale, WHITE, VEC2F(3, 3), BLACK, "Weapon: %s", weapon_enum_to_str(selected_weapon));
     }
 
-    if (id == 0) {
-        {
-            char txt[100];
-            snprintf(txt, 100, "You: %d", player.score);
-            draw_text_shadow(&f, txt, off, scale, player.attribs.color,
-                             VEC2F(3, 3), LIGHT_BLUE);
-        }
-        {
-            char txt[100];
-            snprintf(txt, 100, "Opponent: %d", enemy.score);
-            float txt_width = text_get_size(&f, txt, scale).x;
-            draw_text_shadow(
-                &f, txt, VEC2F(get_screen_width() - txt_width - off.x, off.y),
-                scale, enemy.attribs.color, VEC2F(3, 3), ORANGE);
-        }
-    } else {
-        {
-            char txt[100];
-            snprintf(txt, 100, "Opponent: %d", enemy.score);
-            draw_text_shadow(&f, txt, off, scale, enemy.attribs.color,
-                             VEC2F(3, 3), ORANGE);
-        }
-        {
-            char txt[100];
-            snprintf(txt, 100, "You: %d", player.score);
-            float txt_width = text_get_size(&f, txt, scale).x;
-            draw_text_shadow(
-                &f, txt, VEC2F(get_screen_width() - txt_width - off.x, off.y),
-                scale, player.attribs.color, VEC2F(3, 3), LIGHT_BLUE);
-        }
-    }
+    draw_text_shadow(&f, VEC2F(off.x, off.y), scale, WHITE, VEC2F(3, 3), BLACK, "Game Mode: %s", game_mode_enum_to_str(cur_mode));
 
-    {
-        char txt[100];
-        char *mode;
-        switch (cur_mode) {
-        case MODE_CLASSIC:
-            mode = "Classic";
-            break;
-        case MODE_SOLID:
-            mode = "Solid";
-            break;
-        case MODE_BOUNCY:
-            mode = "Bouncy";
-            break;
-        case MODE_CHAOS:
-            mode = "Chaos";
-            break;
-        case MODE_FRIENDLY_FIRE:
-            mode = "Friendly Fire";
-            break;
-        default:
-            mode = "???";
-            break;
-        }
-        snprintf(txt, 100, "Game Mode: %s", mode);
-        draw_text_shadow(&f, txt, VEC2F(off.x, 100), scale, WHITE, VEC2F(3, 3),
-                         BLACK);
+    for (int i = 0; i < PLAYER_TYPE_SIZE; i++) {
+        color_t color = players[i].attribs.color;
+        draw_text_shadow(&f, VEC2F(off.x, off.y + 75 + (i * 35)), scale * 0.75f, color, VEC2F(3, 3), BLACK, "Score: %d", players[i].score);   
     }
+    display_details(&f);
 }
 
 // }}}
@@ -330,71 +299,71 @@ void play_shoot_sfx() {
 // {{{ game_handle_player() Helper
 
 void game_move_and_collide() {
-    player.attribs.pos.x += speed * vel.x * get_dt();
+    players[id].attribs.pos.x += speed * vel.x * get_dt();
     pthread_mutex_lock(&game_mutex);
     for (int i = 0; i < obstacles_size; i++) {
-        rect_collider player_collider = {.pos = player.attribs.pos,
-                                         .size = player.attribs.size};
+        rect_collider player_collider = {.pos = players[id].attribs.pos,
+                                         .size = players[id].attribs.size};
         rect_collider tile_collider = {
             .pos = obstacles[i], .size = VEC2F(PATTERN_SIZE, PATTERN_SIZE)};
 
-        if (player.attribs.pos.x + player.attribs.size.x <=
+        if (players[id].attribs.pos.x + players[id].attribs.size.x <=
                 tile_collider.pos.x ||
-            player.attribs.pos.x >=
+            players[id].attribs.pos.x >=
                 tile_collider.pos.x + tile_collider.size.x) {
             continue;
         }
 
         if (check_collision_rects(player_collider, tile_collider)) {
             if (vel.x < 0) {
-                player.attribs.pos.x =
+                players[id].attribs.pos.x =
                     tile_collider.pos.x + tile_collider.size.x + 0.01f;
             } else if (vel.x > 0) {
-                player.attribs.pos.x =
-                    tile_collider.pos.x - player.attribs.size.x - 0.01f;
+                players[id].attribs.pos.x =
+                    tile_collider.pos.x - players[id].attribs.size.x - 0.01f;
             }
             vel.x = 0;
         }
     }
     pthread_mutex_unlock(&game_mutex);
 
-    player.attribs.pos.y += speed * vel.y * get_dt();
+    players[id].attribs.pos.y += speed * vel.y * get_dt();
     pthread_mutex_lock(&game_mutex);
     for (int i = 0; i < obstacles_size; i++) {
-        rect_collider player_collider = {.pos = player.attribs.pos,
-                                         .size = player.attribs.size};
+        rect_collider player_collider = {.pos = players[id].attribs.pos,
+                                         .size = players[id].attribs.size};
         rect_collider tile_collider = {
             .pos = obstacles[i], .size = VEC2F(PATTERN_SIZE, PATTERN_SIZE)};
 
-        if (player.attribs.pos.y + player.attribs.size.y <=
+        if (players[id].attribs.pos.y + players[id].attribs.size.y <=
                 tile_collider.pos.y ||
-            player.attribs.pos.y >=
+            players[id].attribs.pos.y >=
                 tile_collider.pos.y + tile_collider.size.y) {
             continue;
         }
 
         if (check_collision_rects(player_collider, tile_collider)) {
             if (vel.y < 0) {
-                player.attribs.pos.y =
+                players[id].attribs.pos.y =
                     tile_collider.pos.y + tile_collider.size.y + 0.01f;
             } else if (vel.y > 0) {
-                player.attribs.pos.y =
-                    tile_collider.pos.y - player.attribs.size.y - 0.01f;
+                players[id].attribs.pos.y =
+                    tile_collider.pos.y - players[id].attribs.size.y - 0.01f;
             }
             vel.y = 0;
         }
     }
     pthread_mutex_unlock(&game_mutex);
 
-    if (player.attribs.pos.x < 0) {
-        player.attribs.pos.x = 0;
-    } else if (player.attribs.pos.x + player.attribs.size.x > MAP_SIZE) {
-        player.attribs.pos.x = MAP_SIZE - player.attribs.size.x;
+    if (players[id].attribs.pos.x < 0) {
+        players[id].attribs.pos.x = 0;
+    } else if (players[id].attribs.pos.x + players[id].attribs.size.x > MAP_SIZE) {
+        players[id].attribs.pos.x = MAP_SIZE - players[id].attribs.size.x;
     }
-    if (player.attribs.pos.y < 0) {
-        player.attribs.pos.y = 0;
-    } else if (player.attribs.pos.y + player.attribs.size.y > MAP_SIZE) {
-        player.attribs.pos.y = MAP_SIZE - player.attribs.size.y;
+    if (players[id].attribs.pos.y < 0) {
+        players[id].attribs.pos.y = 0;
+    } else if (players[id].attribs.pos.y + players[id].attribs.size.y > MAP_SIZE) {
+        players[id].attribs.pos.y = MAP_SIZE - players[id].attribs.size.y;
     }
 }
 
@@ -406,20 +375,20 @@ void game_handle_weapon() {
             if (selected_weapon == WEAPON_PISTOL) {
                 vec2f mouse = get_screen_to_world_2D(get_mouse_pos());
                 vec2f pos = VEC2F(
-                    player.attribs.pos.x + (player.attribs.size.x * 0.5f),
-                    player.attribs.pos.y + (player.attribs.size.y * 0.5f));
+                    players[id].attribs.pos.x + (players[id].attribs.size.x * 0.5f),
+                    players[id].attribs.pos.y + (players[id].attribs.size.y * 0.5f));
                 vec2f dir = vec2f_norm(VEC2F(mouse.x - pos.x, mouse.y - pos.y));
 
                 play_shoot_sfx();
 
                 pthread_mutex_lock(&game_mutex);
-                vec_push(player.projectiles, PROJECTILE_INITIALIZER(pos, dir));
+                vec_push(players[id].projectiles, PROJECTILE_INITIALIZER(pos, dir));
                 pthread_mutex_unlock(&game_mutex);
                 game_sync_projectiles(pos, &dir, 1);
             } else if (selected_weapon == WEAPON_SHOCKWAVE) {
                 vec2f pos = VEC2F(
-                    player.attribs.pos.x + (player.attribs.size.x * 0.5f),
-                    player.attribs.pos.y + (player.attribs.size.y * 0.5f));
+                    players[id].attribs.pos.x + (players[id].attribs.size.x * 0.5f),
+                    players[id].attribs.pos.y + (players[id].attribs.size.y * 0.5f));
                 vec2f dirs[9] = {
                     vec2f_norm(VEC2F(0, -1)), vec2f_norm(VEC2F(1, -1)),
                     vec2f_norm(VEC2F(1, 0)),  vec2f_norm(VEC2F(-1, 1)),
@@ -433,7 +402,7 @@ void game_handle_weapon() {
                 for (int i = 0; i < 9; i++) {
                     vec2f dir = dirs[i];
 
-                    vec_push(player.projectiles,
+                    vec_push(players[id].projectiles,
                              PROJECTILE_INITIALIZER(pos, dir));
                 }
                 pthread_mutex_unlock(&game_mutex);
@@ -441,8 +410,8 @@ void game_handle_weapon() {
             } else {
                 vec2f mouse = get_screen_to_world_2D(get_mouse_pos());
                 vec2f pos = VEC2F(
-                    player.attribs.pos.x + (player.attribs.size.x * 0.5f),
-                    player.attribs.pos.y + (player.attribs.size.y * 0.5f));
+                    players[id].attribs.pos.x + (players[id].attribs.size.x * 0.5f),
+                    players[id].attribs.pos.y + (players[id].attribs.size.y * 0.5f));
                 float dx = mouse.x - pos.x;
                 float dy = mouse.y - pos.y;
 
@@ -457,7 +426,7 @@ void game_handle_weapon() {
 
                 for (int i = 0; i < 3; i++) {
 
-                    vec_push(player.projectiles,
+                    vec_push(players[id].projectiles,
                              PROJECTILE_INITIALIZER(pos, dirs[i]));
                 }
                 pthread_mutex_unlock(&game_mutex);
@@ -471,14 +440,14 @@ void game_handle_weapon() {
 
             vec2f mouse = get_screen_to_world_2D(get_mouse_pos());
             vec2f pos =
-                VEC2F(player.attribs.pos.x + (player.attribs.size.x * 0.5f),
-                      player.attribs.pos.y + (player.attribs.size.y * 0.5f));
+                VEC2F(players[id].attribs.pos.x + (players[id].attribs.size.x * 0.5f),
+                      players[id].attribs.pos.y + (players[id].attribs.size.y * 0.5f));
             vec2f dir = vec2f_norm(VEC2F(mouse.x - pos.x, mouse.y - pos.y));
 
             play_shoot_sfx();
 
             pthread_mutex_lock(&game_mutex);
-            vec_push(player.projectiles, PROJECTILE_INITIALIZER(pos, dir));
+            vec_push(players[id].projectiles, PROJECTILE_INITIALIZER(pos, dir));
             pthread_mutex_unlock(&game_mutex);
             game_sync_projectiles(pos, &dir, 1);
 
@@ -596,66 +565,53 @@ void game_handle_projectile(projectile_t *p) {
 }
 
 void game_handle_projectiles() {
-    pthread_mutex_lock(&game_mutex);
-    foreach_vec(p, player.projectiles) {
-        game_handle_projectile(p);
-
-        rect_collider enemy_collider = {.pos = enemy.attribs.pos,
-                                        .size = enemy.attribs.size};
-        circle_collider projectile_collider = {.pos = p->pos,
-                                               .radius = projectile_radius};
-        if (check_collision_circle_rect(projectile_collider, enemy_collider) &&
-            p->active && enemy_exist) {
-            audio_play_sound(&hit_sfx);
-            p->active = false;
-        }
-
-        if (cur_mode == MODE_FRIENDLY_FIRE && p->bounce >= 1) {
-            rect_collider player_collider = {.pos = player.attribs.pos,
-                                             .size = player.attribs.size};
-            circle_collider projectile_collider = {.pos = p->pos,
-                                                   .radius = projectile_radius};
-            if (check_collision_circle_rect(projectile_collider,
-                                            player_collider) &&
-                p->active && health > 0) {
-                audio_play_sound(&hit_sfx);
-                p->active = false;
-                health--;
-            }
+    for (int i = 0; i < PLAYER_TYPE_SIZE; i++) {
+        foreach_vec(p, players[i].projectiles) {
+            game_handle_projectile(p);
         }
     }
-    vec_erase_if(p, player.projectiles, !p->active);
-    pthread_mutex_unlock(&game_mutex);
-
     pthread_mutex_lock(&game_mutex);
-    foreach_vec(p, enemy.projectiles) {
-        game_handle_projectile(p);
-
-        rect_collider player_collider = {.pos = player.attribs.pos,
-                                         .size = player.attribs.size};
-        circle_collider projectile_collider = {.pos = p->pos,
-                                               .radius = projectile_radius};
-        if (check_collision_circle_rect(projectile_collider, player_collider) &&
-            p->active && health > 0) {
-            audio_play_sound(&hit_sfx);
-            p->active = false;
-            health--;
-        }
-
-        if (cur_mode == MODE_FRIENDLY_FIRE && p->bounce >= 1) {
-            rect_collider enemy_collider = {.pos = enemy.attribs.pos,
-                                            .size = enemy.attribs.size};
-            circle_collider projectile_collider = {.pos = p->pos,
-                                                   .radius = projectile_radius};
-            if (check_collision_circle_rect(projectile_collider,
-                                            enemy_collider) &&
-                p->active && health > 0) {
-                audio_play_sound(&hit_sfx);
-                p->active = false;
+    for (int i = 0; i < PLAYER_TYPE_SIZE; i++) {
+        for (int j = 0; j < PLAYER_TYPE_SIZE; j++) {
+            foreach_vec(p, players[j].projectiles) {
+                rect_collider player_collider = {
+                    .pos = players[i].attribs.pos,
+                    .size = players[i].attribs.size
+                };
+                circle_collider projectile_collider = {
+                    .pos = p->pos,
+                    .radius = projectile_radius
+                };
+                if (check_collision_circle_rect(projectile_collider, player_collider) &&
+                    p->active) {
+                    if (cur_mode == MODE_FRIENDLY_FIRE && p->bounce >= 1) {
+                        if (i == id) {
+                            if (health > 0) {
+                                audio_play_sound(&hit_sfx);
+                                p->active = false;
+                                health--;
+                            }
+                        } else if (enemy_exist[i]){
+                            audio_play_sound(&hit_sfx);
+                            p->active = false;
+                        }
+                    } else {
+                        if (i == id) {
+                            if (i != j && health > 0) {
+                                audio_play_sound(&hit_sfx);
+                                p->active = false;
+                                health--;
+                            }
+                        } else if (i != j && enemy_exist[i]) {
+                            audio_play_sound(&hit_sfx);
+                            p->active = false;
+                        }
+                    }
+                }
             }
         }
+        vec_erase_if(p, players[i].projectiles, !p->active);
     }
-    vec_erase_if(p, enemy.projectiles, !p->active);
     pthread_mutex_unlock(&game_mutex);
 }
 
@@ -664,11 +620,8 @@ void game_handle_controls() {
         window_destroy();
     }
 
-    get_cam_2D()->pos =
-        VEC2F(player.attribs.pos.x + (player.attribs.size.x * 0.5f) -
-                  (get_screen_width() * 0.5f),
-              player.attribs.pos.y + (player.attribs.size.y * 0.5f) -
-                  (get_screen_height() * 0.5f));
+    get_cam_2D()->pos = VEC2F(players[id].attribs.pos.x + (players[id].attribs.size.x * 0.5f) - (get_screen_width() * 0.5f),
+                              players[id].attribs.pos.y + (players[id].attribs.size.y * 0.5f) - (get_screen_height() * 0.5f));
 
     vel = VEC2F(0, 0);
     if (is_key_down(KEY_LETTER_W)) {
@@ -688,7 +641,6 @@ void game_handle_controls() {
 void game_handle_game_over() {
     if (health <= 0 && !sent_death_msg) {
         health = 0;
-        enemy.score++;
         sent_death_msg = true;
         game_sync_death();
     }
@@ -720,8 +672,8 @@ void game_sync_pos() {
     packet_writer writer;
     packet_writer_init(&writer, PACKET_POS_SYNC);
     packet_write_int(&writer, id);
-    packet_write_float(&writer, player.attribs.pos.x);
-    packet_write_float(&writer, player.attribs.pos.y);
+    packet_write_float(&writer, players[id].attribs.pos.x);
+    packet_write_float(&writer, players[id].attribs.pos.y);
     packet_send_to_server(&client, &writer, NET_PACKET_UNRELIABLE, NET_CHANNEL_UNRELIABLE);
 }
 

@@ -2,6 +2,7 @@
 
 #include <cpl/cpl.h>
 #include <cpstd/rand.h>
+#include <cpstd/vector.h>
 
 #include "game.h"
 
@@ -24,15 +25,17 @@ void parse_data(char *packet_data, size_t packet_data_len, net_channels channel,
             id = packet_read_int(&reader);
             break;
         case PACKET_POS_SYNC: {
-            if (id == packet_read_int(&reader)) {
+            int packet_player_id = packet_read_int(&reader);
+            if (id == packet_player_id) {
                 break;
             }
-            enemy.attribs.pos.x = packet_read_float(&reader);
-            enemy.attribs.pos.y = packet_read_float(&reader);
+            players[packet_player_id].attribs.pos.x = packet_read_float(&reader);
+            players[packet_player_id].attribs.pos.y = packet_read_float(&reader);
             break;
         }
         case PACKET_PROJECTILE_SYNC: {
-            if (id == packet_read_int(&reader)) {
+            int packet_player_id = packet_read_int(&reader);
+            if (id == packet_player_id) {
                 break;
             }
             vec2f epos =
@@ -52,37 +55,45 @@ void parse_data(char *packet_data, size_t packet_data_len, net_channels channel,
                                   epos.y + (dir.y * projectile_speed * elapsed));
 
                 pthread_mutex_lock(&game_mutex);
-                vec_push(enemy.projectiles, PROJECTILE_INITIALIZER(pos, dir));
+                vec_push(players[packet_player_id].projectiles, PROJECTILE_INITIALIZER(pos, dir));
                 pthread_mutex_unlock(&game_mutex);
             }
             break;
         }
-        case PACKET_JOIN:
-            if (packet_read_int(&reader) != id) {
-                enemy_exist = true;
+        case PACKET_JOIN: {
+            int packet_player_id = packet_read_int(&reader);
+            if (packet_player_id != id) {
+                enemy_exist[packet_player_id] = true;
             }
             break;
-        case PACKET_LEAVE:
-            if (packet_read_int(&reader) != id) {
-                enemy_exist = false;
+        }
+        case PACKET_LEAVE: {
+            int packet_player_id = packet_read_int(&reader);
+            if (packet_player_id != id) {
+                enemy_exist[packet_player_id] = false;
             }
             break;
-        case PACKET_DEAD:
-            if (packet_read_int(&reader) != id) {
-                enemy_exist = false;
-                player.score++;
+        }
+        case PACKET_DEAD: {
+            int packet_player_id = packet_read_int(&reader);
+            if (packet_player_id != id) {
+                enemy_exist[packet_player_id] = false;
             }
             break;
+        }
         case PACKET_NEW_ROUND:
             game_init_start_pos();
             sent_death_msg = false;
-            enemy_exist = true;
+            pthread_mutex_lock(&game_mutex);
+            for (int i = 0; i < PLAYER_TYPE_SIZE; i++) {
+                enemy_exist[i] = packet_read_bool(&reader);
+                if (enemy_exist[i]) {
+                    vec_clear(players[i].projectiles);
+                }
+            }
+            pthread_mutex_unlock(&game_mutex);
             selected_weapon = pcg_rand() % WEAPONS_SIZE;
             health = MAX_HEALTH;
-            pthread_mutex_lock(&game_mutex);
-            vec_clear(enemy.projectiles);
-            vec_clear(player.projectiles);
-            pthread_mutex_unlock(&game_mutex);
             break;
         case PACKET_RECEIVE_OBSTACLES:
             pthread_mutex_lock(&game_mutex);
@@ -113,6 +124,10 @@ void parse_data(char *packet_data, size_t packet_data_len, net_channels channel,
                 break;
             }
             cur_mode = mode;
+            break;
+        }
+        case PACKET_ADD_SCORE: {
+            players[packet_read_int(&reader)].score++;
             break;
         }
         default:

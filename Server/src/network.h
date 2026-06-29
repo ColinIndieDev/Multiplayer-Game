@@ -3,9 +3,9 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-#define MAX_CLIENTS 2
+#define MAX_CLIENTS PLAYER_TYPE_SIZE
 
-#define MAP_SIZE 1000
+#define MAP_SIZE 2000
 #define PATTERN_SIZE 100
 
 typedef enum : uint8_t {
@@ -18,7 +18,8 @@ typedef enum : uint8_t {
     PACKET_DEAD,
     PACKET_NEW_ROUND,
     PACKET_RECEIVE_OBSTACLES,
-    PACKET_RECEIVE_GAME_MODE
+    PACKET_RECEIVE_GAME_MODE,
+    PACKET_ADD_SCORE
 } packet_id;
 
 typedef enum {
@@ -31,7 +32,13 @@ typedef enum {
     GAME_MODE_SIZE
 } game_mode;
 
-typedef enum { PLAYER_RED = 0, PLAYER_BLUE, PLAYER_TYPE_SIZE } player_type;
+typedef enum { 
+    PLAYER_RED = 0, 
+    PLAYER_BLUE,
+    PLAYER_YELLOW,
+    PLAYER_PURPLE,
+    PLAYER_TYPE_SIZE 
+} player_type;
 
 void network_init();
 void network_destroy();

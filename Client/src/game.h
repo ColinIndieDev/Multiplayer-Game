@@ -29,24 +29,22 @@ typedef enum : uint8_t {
     WEAPONS_SIZE
 } weapons;
 
-#define EXTERN_GAME_H_VARIABLES                                                \
-    extern player_t enemy;                                                     \
-    extern bool enemy_exist;                                                   \
-    extern float projectile_speed;                                             \
-    extern player_t player;                                                    \
-    extern int health;                                                         \
-    extern vec2f map_size;                                                     \
-    extern bool sent_death_msg;                                                \
-    extern weapons selected_weapon;                                            \
-    extern vec2f                                                               \
-        obstacles[(MAP_SIZE / PATTERN_SIZE) * (MAP_SIZE / PATTERN_SIZE)];      \
-    extern int obstacles_size;                                                 \
-    extern unsigned int max_bounces;                                           \
+#define EXTERN_GAME_H_VARIABLES                                                     \
+    extern bool enemy_exist[PLAYER_TYPE_SIZE];                                      \
+    extern float projectile_speed;                                                  \
+    extern player_t players[PLAYER_TYPE_SIZE];                                      \
+    extern int health;                                                              \
+    extern vec2f map_size;                                                          \
+    extern bool sent_death_msg;                                                     \
+    extern weapons selected_weapon;                                                 \
+    extern vec2f obstacles[(MAP_SIZE / PATTERN_SIZE) * (MAP_SIZE / PATTERN_SIZE)];  \
+    extern int obstacles_size;                                                      \
+    extern unsigned int max_bounces;                                                \
     extern game_mode cur_mode;
 
 #define MAX_HEALTH 10
 
-#define MAP_SIZE 1000
+#define MAP_SIZE 2000
 #define PATTERN_SIZE 100
 
 void game_init_start_pos();
